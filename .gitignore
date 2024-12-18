@@ -1,0 +1,8 @@
+**.zip
+**.DS_Store
+**.o
+git.sh
+version*
+**un~
+__pycache__
+clang_format.sh
