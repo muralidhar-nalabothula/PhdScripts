@@ -3,6 +3,7 @@
 *.DS_Store
 **.o
 git.sh
+yapf.sh
 version*
 **un~
 __pycache__

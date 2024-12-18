@@ -49,12 +49,15 @@ def get_pg_info(symm_mats):
         pg_sym_mats.append(i.rrep)
     pg_sym_mats = np.array(pg_sym_mats)
     assert len(pg_sym_mats) == order
-    transfom_mat = transform_matrix(get_paxis(symm_mats),get_paxis(pg_sym_mats))
-    symm_mats_transformed = transfom_mat[None,:,:]@symm_mats@transfom_mat.T[None,:,:]
+    transfom_mat = transform_matrix(get_paxis(symm_mats),
+                                    get_paxis(pg_sym_mats))
+    symm_mats_transformed = transfom_mat[
+        None, :, :] @ symm_mats @ transfom_mat.T[None, :, :]
     assert np.imag(symm_mats_transformed).max() < 1e-4
     symm_mats_transformed = symm_mats_transformed.real
-    sym_tree = KDTree(pg_sym_mats.reshape(order,-1))
-    distance, idx = sym_tree.query(symm_mats_transformed.reshape(order,-1), k=1)
+    sym_tree = KDTree(pg_sym_mats.reshape(order, -1))
+    distance, idx = sym_tree.query(symm_mats_transformed.reshape(order, -1),
+                                   k=1)
     assert np.min(distance) < 1e-4
     assert len(np.unique(idx)) == order
     ctab = pg_to_chartab(pg_label)
@@ -62,25 +65,31 @@ def get_pg_info(symm_mats):
     irreps = ctab.irreps
     char_tab = ctab.characters
     pg_class_map = np.array(generate_symel_to_class_map(pg_symels, ctab))
-    class_map    =  pg_class_map[idx]
+    class_map = pg_class_map[idx]
     class_dict = dict()
-    for i,n in enumerate(class_map):
-        class_dict.setdefault(n,[]).append(i)
-    class_dict = {n:rep for n,rep in class_dict.items() if len(rep)>0}
+    for i, n in enumerate(class_map):
+        class_dict.setdefault(n, []).append(i)
+    class_dict = {n: rep for n, rep in class_dict.items() if len(rep) > 0}
     return pg_label, classes, class_dict, char_tab, irreps
 
-def decompose_rep2irrep(red_rep, char_table, pg_order, class_order, irrep_labels):
-    irrep_coeff = np.einsum('j,j,rj->r',class_order,red_rep,char_table,optimize=True)/pg_order
-    assert np.abs(irrep_coeff.imag).max() < 1e-3, print(np.abs(irrep_coeff.imag).max())
+
+def decompose_rep2irrep(red_rep, char_table, pg_order, class_order,
+                        irrep_labels):
+    irrep_coeff = np.einsum(
+        'j,j,rj->r', class_order, red_rep, char_table, optimize=True) / pg_order
+    assert np.abs(irrep_coeff.imag).max() < 1e-3, print(
+        np.abs(irrep_coeff.imag).max())
     irrep_coeff = irrep_coeff.real
     assert np.abs(irrep_coeff-np.rint(irrep_coeff)).max() < 1e-3,\
-                np.abs(irrep_coeff-np.rint(irrep_coeff)).max() 
+                np.abs(irrep_coeff-np.rint(irrep_coeff)).max()
     irrep_coeff = np.rint(irrep_coeff).astype(int)
     rep_string = ''
     for i in range(len(irrep_labels)):
-        if irrep_coeff[i] == 0: continue
+        if irrep_coeff[i] == 0:
+            continue
         num_str = ''
-        if irrep_coeff[i] > 1 : num_str += str(irrep_coeff[i])
+        if irrep_coeff[i] > 1:
+            num_str += str(irrep_coeff[i])
         rep_string = rep_string + num_str + irrep_labels[i] + ' + '
     return rep_string.strip()[:-1]
 
@@ -97,8 +106,9 @@ def normalize(a):
     """
     n = np.linalg.norm(a)
     if n <= global_tol:
-        return a 
+        return a
     return a / np.linalg.norm(a)
+
 
 def rotation_matrix(axis, theta):
     """
@@ -116,8 +126,9 @@ def rotation_matrix(axis, theta):
     # NOT NORMALIZING AXIS!!!
     M = cos_t * np.eye(3)
     M += sin_t * np.cross(np.eye(3), axis)
-    M += (1-cos_t) * np.outer(axis, axis)
+    M += (1 - cos_t) * np.outer(axis, axis)
     return M
+
 
 def reflection_matrix(axis):
     """
@@ -128,15 +139,16 @@ def reflection_matrix(axis):
     :return: Matrix defining reflection on column vector
     :rtype: NumPy array of shape (3,3)
     """
-    M = np.zeros((3,3))
+    M = np.zeros((3, 3))
     for i in range(3):
-        for j in range(i,3):
+        for j in range(i, 3):
             if i == j:
-                M[i,i] = 1 - 2*(axis[i]**2)
+                M[i, i] = 1 - 2 * (axis[i]**2)
             else:
-                M[i,j] = -2 * axis[i] * axis[j]
-                M[j,i] = M[i,j]
+                M[i, j] = -2 * axis[i] * axis[j]
+                M[j, i] = M[i, j]
     return M
+
 
 def inversion_matrix():
     """
@@ -145,7 +157,8 @@ def inversion_matrix():
     :return: Matrix defining inversion
     :rtype: NumPy array of shape(3,3)
     """
-    return -1*np.eye(3)
+    return -1 * np.eye(3)
+
 
 def Cn(axis, n):
     """
@@ -158,8 +171,9 @@ def Cn(axis, n):
     :return: Matrix defining proper rotation on column vector
     :rtype: NumPy array of shape (3,3)
     """
-    theta = 2*np.pi/n
+    theta = 2 * np.pi / n
     return rotation_matrix(axis, theta)
+
 
 def Sn(axis, n):
     """
@@ -184,11 +198,11 @@ def transform_matrix(paxis_old, paxis_new):
     # find R such that R@paxis_old = paxis_new
     p1 = normalize(paxis_old)
     p2 = normalize(paxis_new)
-    dot = np.dot(p1,p2)
+    dot = np.dot(p1, p2)
     theta = np.arccos(dot)
-    if abs(abs(dot)-1) < 1e-4:
-        return np.sign(dot)*np.eye(3)
-    axis = np.cross(paxis_old,paxis_new)
+    if abs(abs(dot) - 1) < 1e-4:
+        return np.sign(dot) * np.eye(3)
+    axis = np.cross(paxis_old, paxis_new)
     axis = normalize(axis)
     # rotation or reflection?
     return rotation_matrix(axis, theta)
@@ -204,7 +218,9 @@ def reduce(n, i):
     :rtype: (int, int)
     """
     g = gcd(n, i)
-    return n//g, i//g # floor divide to get an int, there should never be a remainder since we are dividing by the gcd
+    return n // g, i // g
+    # floor divide to get an int, there should never be a remainder since we are dividing by the gcd
+
 
 def gcd(A, B):
     """
@@ -215,8 +231,8 @@ def gcd(A, B):
     :return: Greatest common divisor between A and B
     :rtype: int
     """
-    a = max(A,B)
-    b = min(A,B)
+    a = max(A, B)
+    b = min(A, B)
     if a == 0:
         return b
     elif b == 0:
@@ -224,6 +240,7 @@ def gcd(A, B):
     else:
         r = a % b
         return gcd(b, r)
+
 
 def divisors(n):
     """
@@ -236,11 +253,12 @@ def divisors(n):
     """
     out = []
     for i in range(n):
-        if n % (i+1) == 0:
-            out.append(i+1)
+        if n % (i + 1) == 0:
+            out.append(i + 1)
     return out
 
-def distance(a,b):
+
+def distance(a, b):
     """
     Euclidean distance between a and b.
 
@@ -249,13 +267,14 @@ def distance(a,b):
     :return: Distance between a and b
     :rtype: float
     """
-    return np.sqrt(((a-b)**2).sum())
+    return np.sqrt(((a - b)**2).sum())
 
 
 class PointGroup():
     """
     Class for defining point group.
     """
+
     def __init__(self, s, family, n, subfamily):
         self.str = s
         self.family = family
@@ -300,9 +319,9 @@ class PointGroup():
         argstr = (f"You have generated a dumb point group:" +
                   " {self.str}. Family {self.family}, n {self.n}," +
                   " subfamily {self.subfamily}. We aren't sure " +
-                  "how you managed to do this but we aren't paid "+
-                  "enough to proceed with any calculations. "+
-                  "If you have any questions, "+
+                  "how you managed to do this but we aren't paid " +
+                  "enough to proceed with any calculations. " +
+                  "If you have any questions, " +
                   "feel free to email the CFOUR listserv.")
         if self.n is None:
             if self.family == "C":
@@ -339,17 +358,22 @@ class PointGroup():
                     return 0
         raise Exception(argstr)
 
+
 class CharacterTable():
-    def __init__(self, pg, irreps, classes, class_orders, chars, irrep_dims) -> None:
+
+    def __init__(self, pg, irreps, classes, class_orders, chars,
+                 irrep_dims) -> None:
         self.name = pg
         self.irreps = irreps
         self.classes = classes
         self.class_orders = class_orders
         self.characters = chars
         self.irrep_dims = irrep_dims
+
     def __repr__(self) -> str:
         return f"Character Table for {self.name}\nIrreps: \
                 {self.irreps}\nClasses: {self.classes}\nCharacters:\n{self.characters}\n"
+
     def __eq__(self, other):
         if len(self.irreps) == len(other.irreps) and \
                 len(self.classes) == len(other.classes) and \
@@ -360,16 +384,17 @@ class CharacterTable():
         else:
             return False
 
+
 def pg_to_chartab(PG):
     pg = PointGroup.from_string(PG)
     irreps = []
     if pg.family == "C":
         if pg.subfamily == "s":
-            irreps = ["A'","A''"]
+            irreps = ["A'", "A''"]
             classes = ["E", "sigma_h"]
             chars = np.array([[1.0, 1.0], [1.0, -1.0]])
         elif pg.subfamily == "i":
-            irreps = ["Ag","Au"]
+            irreps = ["Ag", "Au"]
             classes = ["E", "i"]
             chars = np.array([[1.0, 1.0], [1.0, -1.0]])
         elif pg.subfamily == "v":
@@ -389,103 +414,122 @@ def pg_to_chartab(PG):
     elif pg.family == "S":
         irreps, classes, chars = Sn_irr_complex(pg.n)
     else:
-        cp3 = np.cos(np.pi/3)
-        pr5 = 0.5*(1.0+np.sqrt(5.0))
-        mr5 = 0.5*(1.0-np.sqrt(5.0))
+        cp3 = np.cos(np.pi / 3)
+        pr5 = 0.5 * (1.0 + np.sqrt(5.0))
+        mr5 = 0.5 * (1.0 - np.sqrt(5.0))
         if pg.family == "T":
             if pg.subfamily == "h":
-                irreps, classes, chars = (["Ag","Au","Eg","Eu","Tg","Tu"],
-                 ["E", "4C_3", "4C_3^2", "3C_2", "i", "S_6", "S_6^5", "3sigma_h"],
-                 np.array(
-                 [[1.0,  1.0,  1.0,  1.0,  1.0,  1.0,  1.0,  1.0],
-                  [1.0,  1.0,  1.0,  1.0, -1.0, -1.0, -1.0, -1.0],
-                  [2.0,  cp3,  cp3,  2.0,  2.0,  cp3,  cp3,  1.0],
-                  [2.0,  cp3,  cp3,  2.0, -2.0, -cp3, -cp3, -1.0],
-                  [3.0,  0.0,  0.0, -1.0,  1.0,  0.0,  0.0, -1.0],
-                  [3.0,  0.0,  0.0, -1.0, -1.0,  0.0,  0.0,  1.0]]))
+                irreps, classes, chars = (
+                    ["Ag", "Au", "Eg", "Eu", "Tg", "Tu"], [
+                        "E", "4C_3", "4C_3^2", "3C_2", "i", "S_6", "S_6^5",
+                        "3sigma_h"
+                    ],
+                    np.array([[1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0],
+                              [1.0, 1.0, 1.0, 1.0, -1.0, -1.0, -1.0, -1.0],
+                              [2.0, cp3, cp3, 2.0, 2.0, cp3, cp3, 1.0],
+                              [2.0, cp3, cp3, 2.0, -2.0, -cp3, -cp3, -1.0],
+                              [3.0, 0.0, 0.0, -1.0, 1.0, 0.0, 0.0, -1.0],
+                              [3.0, 0.0, 0.0, -1.0, -1.0, 0.0, 0.0, 1.0]]))
             elif pg.subfamily == "d":
-                irreps, classes, chars = (["A1","A2","E","T1","T2"],
-                 ["E", "8C_3", "3C_2", "6S_4", "6sigma_d"],
-                 np.array(
-                 [[1.0,  1.0,  1.0,  1.0,  1.0],
-                  [1.0,  1.0,  1.0, -1.0, -1.0],
-                  [2.0, -1.0,  2.0,  0.0,  0.0],
-                  [3.0,  0.0, -1.0,  1.0, -1.0],
-                  [3.0,  0.0, -1.0, -1.0,  1.0]]))
+                irreps, classes, chars = (["A1", "A2", "E", "T1", "T2"], [
+                    "E", "8C_3", "3C_2", "6S_4", "6sigma_d"
+                ],
+                                          np.array([[1.0, 1.0, 1.0, 1.0, 1.0],
+                                                    [1.0, 1.0, 1.0, -1.0, -1.0],
+                                                    [2.0, -1.0, 2.0, 0.0, 0.0],
+                                                    [3.0, 0.0, -1.0, 1.0, -1.0],
+                                                    [3.0, 0.0, -1.0, -1.0,
+                                                     1.0]]))
             else:
-                irreps, classes, chars = (["A","E","T"],
-                 ["E", "4C_3", "4C_3^2", "3C_2"],
-                 np.array(
-                 [[1.0,  1.0,  1.0,  1.0],
-                  [2.0,  cp3,  cp3,  2.0],
-                  [3.0,  0.0,  0.0, -1.0]]))
+                irreps, classes, chars = (["A", "E", "T"],
+                                          ["E", "4C_3", "4C_3^2", "3C_2"],
+                                          np.array([[1.0, 1.0, 1.0, 1.0],
+                                                    [2.0, cp3, cp3, 2.0],
+                                                    [3.0, 0.0, 0.0, -1.0]]))
         elif pg.family == "O":
             if pg.subfamily == "h":
-                irreps, classes, chars = (["A1g","A2g","Eg","T1g","T2g","A1u","A2u","Eu","T1u","T2u"],
-                 ["E", "8C_3", "6C_2", "6C_4", "3C_2", "i", "6S_4", "8S_6", "3sigma_h", "6sigma_d"],
-                 np.array(
-                 [[1.0,  1.0,  1.0,  1.0,  1.0,  1.0,  1.0,  1.0,  1.0,  1.0],
-                  [1.0,  1.0, -1.0, -1.0,  1.0,  1.0, -1.0,  1.0,  1.0, -1.0],
-                  [2.0, -1.0,  0.0,  0.0,  2.0,  2.0,  0.0, -1.0,  2.0,  0.0],
-                  [3.0,  0.0, -1.0,  1.0, -1.0,  3.0,  1.0,  0.0, -1.0, -1.0],
-                  [3.0,  0.0,  1.0, -1.0, -1.0,  3.0, -1.0,  0.0, -1.0,  1.0],
-                  [1.0,  1.0,  1.0,  1.0,  1.0, -1.0, -1.0, -1.0, -1.0, -1.0],
-                  [1.0,  1.0, -1.0, -1.0,  1.0, -1.0,  1.0, -1.0, -1.0,  1.0],
-                  [2.0, -1.0,  0.0,  0.0,  2.0, -2.0,  0.0,  1.0, -2.0,  0.0],
-                  [3.0,  0.0, -1.0,  1.0, -1.0, -3.0, -1.0,  0.0,  1.0,  1.0],
-                  [3.0,  0.0,  1.0, -1.0, -1.0, -3.0,  1.0,  0.0,  1.0, -1.0]]))
+                irreps, classes, chars = (
+                    [
+                        "A1g", "A2g", "Eg", "T1g", "T2g", "A1u", "A2u", "Eu",
+                        "T1u", "T2u"
+                    ], [
+                        "E", "8C_3", "6C_2", "6C_4", "3C_2", "i", "6S_4",
+                        "8S_6", "3sigma_h", "6sigma_d"
+                    ],
+                    np.array([
+                        [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0],
+                        [1.0, 1.0, -1.0, -1.0, 1.0, 1.0, -1.0, 1.0, 1.0, -1.0],
+                        [2.0, -1.0, 0.0, 0.0, 2.0, 2.0, 0.0, -1.0, 2.0, 0.0],
+                        [3.0, 0.0, -1.0, 1.0, -1.0, 3.0, 1.0, 0.0, -1.0, -1.0],
+                        [3.0, 0.0, 1.0, -1.0, -1.0, 3.0, -1.0, 0.0, -1.0, 1.0],
+                        [1.0, 1.0, 1.0, 1.0, 1.0, -1.0, -1.0, -1.0, -1.0, -1.0],
+                        [1.0, 1.0, -1.0, -1.0, 1.0, -1.0, 1.0, -1.0, -1.0, 1.0],
+                        [2.0, -1.0, 0.0, 0.0, 2.0, -2.0, 0.0, 1.0, -2.0, 0.0],
+                        [3.0, 0.0, -1.0, 1.0, -1.0, -3.0, -1.0, 0.0, 1.0, 1.0],
+                        [3.0, 0.0, 1.0, -1.0, -1.0, -3.0, 1.0, 0.0, 1.0, -1.0]
+                    ]))
             else:
-                irreps, classes, chars = (["A1","A2","E","T1","T2"],
-                 ["E", "6C_4", "3C_2", "8C_3", "6C_2"],
-                 np.array(
-                 [[1.0,  1.0,  1.0,  1.0,  1.0],
-                  [1.0, -1.0,  1.0,  1.0, -1.0],
-                  [2.0,  0.0,  2.0, -1.0,  0.0],
-                  [3.0,  1.0, -1.0,  0.0, -1.0],
-                  [3.0, -1.0, -1.0,  0.0,  1.0]]))
+                irreps, classes, chars = (["A1", "A2", "E", "T1", "T2"],
+                                          ["E", "6C_4", "3C_2", "8C_3", "6C_2"],
+                                          np.array([[1.0, 1.0, 1.0, 1.0, 1.0],
+                                                    [1.0, -1.0, 1.0, 1.0, -1.0],
+                                                    [2.0, 0.0, 2.0, -1.0, 0.0],
+                                                    [3.0, 1.0, -1.0, 0.0, -1.0],
+                                                    [3.0, -1.0, -1.0, 0.0,
+                                                     1.0]]))
         elif pg.family == "I":
             if pg.subfamily == "h":
-                irreps, classes, chars = (["Ag","T1g","T2g","Gg","Hg","Au","T1u","T2u","Gu","Hu"],
-                 ["E", "12C_5", "12C_5^2", "20C_3", "15C_2", "i", "12S_10", "12S_10^3", "20S_6", "15sigma"],
-                 np.array(
-                 [[1.0,  1.0,  1.0,  1.0,  1.0,  1.0,  1.0,  1.0,  1.0,  1.0],
-                  [3.0,  pr5,  mr5,  0.0, -1.0,  3.0,  mr5,  pr5,  0.0, -1.0],
-                  [3.0,  mr5,  pr5,  0.0, -1.0,  3.0,  pr5,  mr5,  0.0, -1.0],
-                  [4.0, -1.0, -1.0,  1.0,  0.0,  4.0, -1.0, -1.0,  1.0,  0.0],
-                  [5.0,  0.0,  0.0, -1.0,  1.0,  5.0,  0.0,  0.0, -1.0,  1.0],
-                  [1.0,  1.0,  1.0,  1.0,  1.0, -1.0, -1.0, -1.0, -1.0, -1.0],
-                  [3.0,  pr5,  mr5,  0.0, -1.0, -3.0, -mr5, -pr5,  0.0,  1.0],
-                  [3.0,  mr5,  pr5,  0.0, -1.0, -3.0, -pr5, -mr5,  0.0,  1.0],
-                  [4.0, -1.0, -1.0,  1.0,  0.0, -4.0,  1.0,  1.0, -1.0,  0.0],
-                  [5.0,  0.0,  0.0, -1.0,  1.0, -5.0,  0.0,  0.0,  1.0, -1.0]]))
+                irreps, classes, chars = (
+                    [
+                        "Ag", "T1g", "T2g", "Gg", "Hg", "Au", "T1u", "T2u",
+                        "Gu", "Hu"
+                    ], [
+                        "E", "12C_5", "12C_5^2", "20C_3", "15C_2", "i",
+                        "12S_10", "12S_10^3", "20S_6", "15sigma"
+                    ],
+                    np.array([
+                        [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0],
+                        [3.0, pr5, mr5, 0.0, -1.0, 3.0, mr5, pr5, 0.0, -1.0],
+                        [3.0, mr5, pr5, 0.0, -1.0, 3.0, pr5, mr5, 0.0, -1.0],
+                        [4.0, -1.0, -1.0, 1.0, 0.0, 4.0, -1.0, -1.0, 1.0, 0.0],
+                        [5.0, 0.0, 0.0, -1.0, 1.0, 5.0, 0.0, 0.0, -1.0, 1.0],
+                        [1.0, 1.0, 1.0, 1.0, 1.0, -1.0, -1.0, -1.0, -1.0, -1.0],
+                        [3.0, pr5, mr5, 0.0, -1.0, -3.0, -mr5, -pr5, 0.0, 1.0],
+                        [3.0, mr5, pr5, 0.0, -1.0, -3.0, -pr5, -mr5, 0.0, 1.0],
+                        [4.0, -1.0, -1.0, 1.0, 0.0, -4.0, 1.0, 1.0, -1.0, 0.0],
+                        [5.0, 0.0, 0.0, -1.0, 1.0, -5.0, 0.0, 0.0, 1.0, -1.0]
+                    ]))
             else:
-                irreps, classes, chars = (["A","T1","T2","G","H"],
-                 ["E", "12C_5", "12C_5^2", "20C_3", "15C_2"],
-                 np.array(
-                 [[1.0,  1.0,  1.0,  1.0,  1.0],
-                  [3.0,  pr5,  mr5,  0.0, -1.0],
-                  [3.0,  mr5,  pr5,  0.0, -1.0],
-                  [4.0, -1.0, -1.0,  1.0,  0.0],
-                  [5.0,  0.0,  0.0, -1.0,  1.0]]))
+                irreps, classes, chars = (["A", "T1", "T2", "G", "H"], [
+                    "E", "12C_5", "12C_5^2", "20C_3", "15C_2"
+                ],
+                                          np.array([[1.0, 1.0, 1.0, 1.0, 1.0],
+                                                    [3.0, pr5, mr5, 0.0, -1.0],
+                                                    [3.0, mr5, pr5, 0.0, -1.0],
+                                                    [4.0, -1.0, -1.0, 1.0, 0.0],
+                                                    [5.0, 0.0, 0.0, -1.0,
+                                                     1.0]]))
         else:
-            raise Exception(f"An invalid point group has been "+
-                            "given or unexpected parsing of the "+
+            raise Exception(f"An invalid point group has been " +
+                            "given or unexpected parsing of the " +
                             "point group string has occured: {pg.str}")
     class_orders = grab_class_orders(classes)
     irr_dims = {}
-    for (irr_idx,irrep) in enumerate(irreps):
+    for (irr_idx, irrep) in enumerate(irreps):
         if pg.n == 1:
             irr_dims[irrep] = int(chars[0])
         else:
             irr_dims[irrep] = int(np.real(chars[irr_idx, 0]))
     return CharacterTable(PG, irreps, classes, class_orders, chars, irr_dims)
 
+
 def grab_class_orders(classes):
     ncls = len(classes)
     class_orders = np.zeros(ncls)
-    for i in range(ncls): # = 1:ncls
+    for i in range(ncls):  # = 1:ncls
         class_orders[i] = grab_order(classes[i])
     return class_orders
+
 
 def grab_order(class_str):
     regex = r"^(\d+)"
@@ -495,18 +539,20 @@ def grab_order(class_str):
     else:
         return 1
 
+
 def c_class_string(classes, pre, r, s):
     "Pushes class string to 'classes' for rotations, but ignores superscript if s is one"
     if s == 1:
-        classes.append(pre+f"_{r}")
+        classes.append(pre + f"_{r}")
     else:
-        classes.append(pre+f"_{r}^{s}")
+        classes.append(pre + f"_{r}^{s}")
+
 
 def Cn_irrmat(n):
     names = ["A"]
     classes = ["E"]
-    for c in range(1,n):
-        r,s = reduce(n,c)
+    for c in range(1, n):
+        r, s = reduce(n, c)
         c_class_string(classes, "C", r, s)
     chars = np.ones(n)
     if n % 2 == 0:
@@ -514,33 +560,34 @@ def Cn_irrmat(n):
         bi = np.ones(n)
         #for i=1:n:
         for i in range(n):
-            if (i+1) % 2 == 0:
+            if (i + 1) % 2 == 0:
                 bi[i] *= -1
         chars = np.vstack((chars, bi))
     if 2 < n < 5:
         # No label associated with E if n < 5
         names.append("E")
-        theta = 2*np.pi / n
+        theta = 2 * np.pi / n
         v = np.zeros(n)
         for j in range(n):
-            v[j] += 2*np.cos(j*theta)
+            v[j] += 2 * np.cos(j * theta)
         chars = np.vstack((chars, v))
     elif n >= 5:
-        theta = 2*np.pi / n
-        l = round(((n-len(names))/2))
-        for i in range(l):#= 1:l:
+        theta = 2 * np.pi / n
+        l = round(((n - len(names)) / 2))
+        for i in range(l):  #= 1:l:
             names.append(f"E{i+1}")
             v = np.zeros(n)
             for j in range(n):
-                v[j] += 2*np.cos((i+1)*j*theta)
+                v[j] += 2 * np.cos((i + 1) * j * theta)
             chars = np.vstack((chars, v))
     return names, classes, chars
+
 
 def Cn_irr_complex(n):
     names = ["A"]
     classes = ["E"]
-    for c in range(1,n):
-        r,s = reduce(n,c)
+    for c in range(1, n):
+        r, s = reduce(n, c)
         c_class_string(classes, "C", r, s)
     chars = np.ones(n)
     if n % 2 == 0:
@@ -548,14 +595,14 @@ def Cn_irr_complex(n):
         bi = np.ones(n)
         #for i=1:n:
         for i in range(n):
-            if (i+1) % 2 == 0:
+            if (i + 1) % 2 == 0:
                 bi[i] *= -1
         chars = np.vstack((chars, bi))
     if 2 < n < 5:
         # No label associated with E if n < 5
         names.append("E_1")
         names.append("E_2")
-        theta = np.exp(2*np.pi*1j / n)
+        theta = np.exp(2 * np.pi * 1j / n)
         v1 = np.zeros(n, dtype=np.complex128)
         v2 = np.zeros(n, dtype=np.complex128)
         for a in range(n):
@@ -564,12 +611,12 @@ def Cn_irr_complex(n):
         chars = np.vstack((chars, v1))
         chars = np.vstack((chars, v2))
     elif n >= 5:
-        theta = 2*np.pi / n
-        l = round(((n-len(names))/2))
-        for a in range(l):#= 1:l:
+        theta = 2 * np.pi / n
+        l = round(((n - len(names)) / 2))
+        for a in range(l):  #= 1:l:
             names.append(f"E{a+1}_1")
             names.append(f"E{a+1}_2")
-            theta = np.exp(2*np.pi*1j*(a+1) / n)
+            theta = np.exp(2 * np.pi * 1j * (a + 1) / n)
             v1 = np.zeros(n, dtype=np.complex128)
             v2 = np.zeros(n, dtype=np.complex128)
             for b in range(n):
@@ -579,76 +626,79 @@ def Cn_irr_complex(n):
             chars = np.vstack((chars, v2))
     return names, classes, chars
 
+
 def Cnv_irr(n):
     names, classes, chars = Cn_irrmat(n)
     classes = ["E"]
     if n % 2 == 0:
-        for c in range(1,n>>1): # = 1:(n>>1)-1:
-            r,s = reduce(n,c)
+        for c in range(1, n >> 1):  # = 1:(n>>1)-1:
+            r, s = reduce(n, c)
             c_class_string(classes, "2C", r, s)
         classes.append("C_2")
-        if n>>1 == 1:
+        if n >> 1 == 1:
             classes.append("sigma_v(xz)")
             classes.append("sigma_d(yz)")
         else:
             classes.append(f"{n>>1}sigma_v")
             classes.append(f"{n>>1}sigma_d")
     else:
-        for c in range(1,(n>>1)+1): # = 1:n>>1:
-            r,s = reduce(n,c)
+        for c in range(1, (n >> 1) + 1):  # = 1:n>>1:
+            r, s = reduce(n, c)
             c_class_string(classes, "2C", r, s)
         classes.append(f"{n}sigma_v")
     names[0] = "A1"
     names.insert(1, "A2")
-    chars = np.vstack((chars[0,:], chars[0,:], chars[1:,:]))
-    for i in range(1,n):# = 2:n:
-        if i >= n-i:
+    chars = np.vstack((chars[0, :], chars[0, :], chars[1:, :]))
+    for i in range(1, n):  # = 2:n:
+        if i >= n - i:
             break
         #deleteat!(classes, n-i+2)
-        chars = chars[:,[j for j in range(np.shape(chars)[1]) if j != n-i]] #chars[:,1:-1.!=n-i+2]
+        chars = chars[:, [j for j in range(np.shape(chars)[1]) if j != n - i
+                         ]]  #chars[:,1:-1.!=n-i+2]
     if n % 2 == 0:
-        nirr = round((n/2)+3)
+        nirr = round((n / 2) + 3)
         names[2] = "B1"
         names.insert(3, "B2")
-        chars = np.vstack((chars[0:3,:], chars[2,:], chars[3:,:]))
+        chars = np.vstack((chars[0:3, :], chars[2, :], chars[3:, :]))
         sigma_v = np.zeros(nirr)
         sigma_d = np.zeros(nirr)
-        sigma_v[0:4] = np.array([1,-1,1,-1])
-        sigma_d[0:4] = np.array([1,-1,-1,1])
-        chars = np.hstack((chars, sigma_v[:,None], sigma_d[:,None]))
+        sigma_v[0:4] = np.array([1, -1, 1, -1])
+        sigma_d[0:4] = np.array([1, -1, -1, 1])
+        chars = np.hstack((chars, sigma_v[:, None], sigma_d[:, None]))
     else:
-        nirr = round((n-1)/2+2)
+        nirr = round((n - 1) / 2 + 2)
         sigma_v = np.zeros(nirr)
         sigma_v[0:2] = np.array([1, -1])
-        chars = np.hstack((chars, sigma_v[:,None]))
+        chars = np.hstack((chars, sigma_v[:, None]))
     return names, classes, chars
+
 
 def Cnh_irr(n):
     #names, classes, cnchars = Cn_irrmat(n)
     names, classes, cnchars = Cn_irr_complex(n)
-    if n % 2 == 0: 
+    if n % 2 == 0:
         classes.append("i")
-        for i in range(1,n): # = 1:n-1:
-            if i == n>>1:
+        for i in range(1, n):  # = 1:n-1:
+            if i == n >> 1:
                 classes.append("sigma_h")
             else:
-                r,s = reduce(n, (i+(n>>1))%n)
+                r, s = reduce(n, (i + (n >> 1)) % n)
                 if s % 2 == 0:
                     s += r
                 c_class_string(classes, "S", r, s)
     else:
         classes.append("sigma_h")
-        for i in range(1,n): # = 1:n-1:
-            r,s = reduce(n,i)
+        for i in range(1, n):  # = 1:n-1:
+            r, s = reduce(n, i)
             if i % 2 == 0:
-                c_class_string(classes, "S", r, s+n)
+                c_class_string(classes, "S", r, s + n)
             else:
                 c_class_string(classes, "S", r, s)
     if n % 2 == 0:
         newnames = []
-        for i in range(len(names)):# = 1:length(names):
-            newnames.append(names[i]+"u")
-            names[i] = names[i]+"g"
+        for i in range(len(names)):  # = 1:length(names):
+            newnames.append(names[i] + "u")
+            names[i] = names[i] + "g"
         names += newnames
         cncharsi = -1 * cnchars
         top = np.hstack((cnchars, cnchars))
@@ -656,37 +706,38 @@ def Cnh_irr(n):
         chars = np.vstack((top, bot))
     else:
         newnames = []
-        for i in range(len(names)):# = 1:length(names):
-            newnames.append(names[i]+"''")
-            names[i] = names[i]+"'"
+        for i in range(len(names)):  # = 1:length(names):
+            newnames.append(names[i] + "''")
+            names[i] = names[i] + "'"
         names += newnames
         cncharsi = -1 * cnchars
         top = np.hstack((cnchars, cnchars))
         bot = np.hstack((cnchars, cncharsi))
         chars = np.vstack((top, bot))
     return names, classes, chars
+
 
 def Sn_irr(n):
     if n % 4 == 0:
         names, classes, chars = Cn_irrmat(n)
-        for i in range(n): # = 1:n:
-            if (i+1) % 2 == 0:
-                classes[i] = "S"+classes[i][1:]
+        for i in range(n):  # = 1:n:
+            if (i + 1) % 2 == 0:
+                classes[i] = "S" + classes[i][1:]
     elif n % 2 == 0:
-        ni = round(n/2)
+        ni = round(n / 2)
         names, classes, cnchars = Cn_irrmat(ni)
         classes = ["E"]
-        for i in range(1,n>>1): # = 1:n>>1-1:
-            r,s = reduce(n>>1, i)
+        for i in range(1, n >> 1):  # = 1:n>>1-1:
+            r, s = reduce(n >> 1, i)
             c_class_string(classes, "C", r, s)
         classes.append("i")
-        for i in range(1,n>>1): # = 1:n>>1-1:
-            r,s = reduce(n, ((i<<1)+(n>>1))%n)
+        for i in range(1, n >> 1):  # = 1:n>>1-1:
+            r, s = reduce(n, ((i << 1) + (n >> 1)) % n)
             c_class_string(classes, "S", r, s)
         newnames = []
-        for i in range(len(names)): # = 1:length(names):
-            newnames.append(names[i]+"u")
-            names[i] = names[i]+"g"
+        for i in range(len(names)):  # = 1:length(names):
+            newnames.append(names[i] + "u")
+            names[i] = names[i] + "g"
         names += newnames
         cncharsi = -1 * cnchars
         top = np.hstack((cnchars, cnchars))
@@ -696,27 +747,28 @@ def Sn_irr(n):
         raise Exception("Odd number n for S group")
     return names, classes, chars
 
+
 def Sn_irr_complex(n):
     if n % 4 == 0:
         names, classes, chars = Cn_irr_complex(n)
-        for i in range(n): # = 1:n:
-            if (i+1) % 2 == 0:
-                classes[i] = "S"+classes[i][1:]
+        for i in range(n):  # = 1:n:
+            if (i + 1) % 2 == 0:
+                classes[i] = "S" + classes[i][1:]
     elif n % 2 == 0:
-        ni = round(n/2)
+        ni = round(n / 2)
         names, classes, cnchars = Cn_irr_complex(ni)
         classes = ["E"]
-        for i in range(1,n>>1): # = 1:n>>1-1:
-            r,s = reduce(n>>1, i)
+        for i in range(1, n >> 1):  # = 1:n>>1-1:
+            r, s = reduce(n >> 1, i)
             c_class_string(classes, "C", r, s)
         classes.append("i")
-        for i in range(1,n>>1): # = 1:n>>1-1:
-            r,s = reduce(n, ((i<<1)+(n>>1))%n)
+        for i in range(1, n >> 1):  # = 1:n>>1-1:
+            r, s = reduce(n, ((i << 1) + (n >> 1)) % n)
             c_class_string(classes, "S", r, s)
         newnames = []
-        for i in range(len(names)): # = 1:length(names):
-            newnames.append(names[i]+"u")
-            names[i] = names[i]+"g"
+        for i in range(len(names)):  # = 1:length(names):
+            newnames.append(names[i] + "u")
+            names[i] = names[i] + "g"
         names += newnames
         cncharsi = -1 * cnchars
         top = np.hstack((cnchars, cnchars))
@@ -725,44 +777,48 @@ def Sn_irr_complex(n):
     else:
         raise Exception("Odd number n for S group")
     return names, classes, chars
+
 
 def Dn_irr(n):
     if n == 2:
         names = ["A", "B1", "B2", "B3"]
         classes = ["E", "C_2(z)", "C_2(y)", "C_2(x)"]
-        chars = np.array([[1, 1, 1, 1], [1, 1, -1, -1], [1, -1, 1, -1], [1, -1, -1, 1]])
+        chars = np.array([[1, 1, 1, 1], [1, 1, -1, -1], [1, -1, 1, -1],
+                          [1, -1, -1, 1]])
         return names, classes, chars
     names, garbage_classes, chars = Cn_irrmat(n)
     garbage_names, classes, garbage_chars = Cnv_irr(n)
     if n % 2 == 0:
-        classes[-2] = classes[-2][0]+"C_2'"
-        classes[-1] = classes[-1][0]+"C_2''"
+        classes[-2] = classes[-2][0] + "C_2'"
+        classes[-1] = classes[-1][0] + "C_2''"
     else:
-        classes[-1] = classes[-1][0]+"C_2"
+        classes[-1] = classes[-1][0] + "C_2"
     names[0] = "A1"
     names.insert(1, "A2")
-    chars = np.vstack((chars[0,:], chars[0,:], chars[1:,:]))
-    for i in range(1,n): # = 2:n:
-        if i == n-i or i > n-i:
+    chars = np.vstack((chars[0, :], chars[0, :], chars[1:, :]))
+    for i in range(1, n):  # = 2:n:
+        if i == n - i or i > n - i:
             break
         #deleteat!(classes, n-i+2)
-        chars = chars[:,[j for j in range(np.shape(chars)[1]) if j != n-i]] # chars[:,0:-1.!=n-i+2]
+        chars = chars[:, [j for j in range(np.shape(chars)[1]) if j != n - i
+                         ]]  # chars[:,0:-1.!=n-i+2]
     if n % 2 == 0:
-        nirr = round((n/2)+3)
+        nirr = round((n / 2) + 3)
         names[2] = "B1"
         names.insert(3, "B2")
-        chars = np.vstack((chars[0:3,:], chars[2,:], chars[3:,:]))
+        chars = np.vstack((chars[0:3, :], chars[2, :], chars[3:, :]))
         C2p = np.zeros(nirr)
         C2pp = np.zeros(nirr)
-        C2p[0:4] = np.array([1,-1,1,-1])
-        C2pp[0:4] = np.array([1,-1,-1,1])
-        chars = np.hstack((chars, C2p[:,None], C2pp[:,None]))
+        C2p[0:4] = np.array([1, -1, 1, -1])
+        C2pp[0:4] = np.array([1, -1, -1, 1])
+        chars = np.hstack((chars, C2p[:, None], C2pp[:, None]))
     else:
-        nirr = round((n-1)/2+2)
+        nirr = round((n - 1) / 2 + 2)
         C2p = np.zeros(nirr)
         C2p[0:2] = np.array([1, -1])
-        chars = np.hstack((chars, C2p[:,None]))
+        chars = np.hstack((chars, C2p[:, None]))
     return names, classes, chars
+
 
 def Dnh_irr(n):
     names, classes, dnchars = Dn_irr(n)
@@ -773,11 +829,11 @@ def Dnh_irr(n):
             classes.append("sigma(xz)")
             classes.append("sigma(yz)")
         else:
-            for i in range(1,n>>1): # = 1:n>>1-1:
-                a = i+(n>>1)
-                if a > (n>>1):
+            for i in range(1, n >> 1):  # = 1:n>>1-1:
+                a = i + (n >> 1)
+                if a > (n >> 1):
                     a = n - a
-                r,s = reduce(n, a)
+                r, s = reduce(n, a)
                 c_class_string(classes, "2S", r, s)
             classes.append("sigma_h")
             if n % 4 == 0:
@@ -787,9 +843,9 @@ def Dnh_irr(n):
                 classes.append(f"{n>>1}sigma_d")
                 classes.append(f"{n>>1}sigma_v")
         newnames = []
-        for i in range(len(names)): # = 1:length(names):
-            newnames.append(names[i]+"u")
-            names[i] = names[i]+"g"
+        for i in range(len(names)):  # = 1:length(names):
+            newnames.append(names[i] + "u")
+            names[i] = names[i] + "g"
         names += newnames
         dncharsi = -1 * dnchars
         top = np.hstack((dnchars, dnchars))
@@ -797,17 +853,17 @@ def Dnh_irr(n):
         chars = np.vstack((top, bot))
     else:
         classes.append("sigma_h")
-        for i in range(1,(n>>1)+1): # = 1:n>>1:
+        for i in range(1, (n >> 1) + 1):  # = 1:n>>1:
             if i % 2 == 0:
-                r,s = reduce(n, n-i)
+                r, s = reduce(n, n - i)
             else:
-                r,s = reduce(n ,i)
+                r, s = reduce(n, i)
             c_class_string(classes, "2S", r, s)
         classes.append(f"{n}sigma_v")
         newnames = []
-        for i in range(len(names)): # = 1:length(names):
-            newnames.append(names[i]+"''")
-            names[i] = names[i]+"'"
+        for i in range(len(names)):  # = 1:length(names):
+            newnames.append(names[i] + "''")
+            names[i] = names[i] + "'"
         names += newnames
         dncharsi = -1 * dnchars
         top = np.hstack((dnchars, dnchars))
@@ -815,53 +871,54 @@ def Dnh_irr(n):
         chars = np.vstack((top, bot))
     return names, classes, chars
 
+
 def Dnd_irr(n):
     if n % 2 == 0:
-        n2 = 2*n
+        n2 = 2 * n
         names, classes, chars = Sn_irr(n2)
         #classes = collect(1:2*n2)
-        classes = classes[0:n+1]
-        for i in range(1,n): # = 2:n:
-            classes[i] = "2"+classes[i]
+        classes = classes[0:n + 1]
+        for i in range(1, n):  # = 2:n:
+            classes[i] = "2" + classes[i]
         classes.append(f"{n}C_2'")
         classes.append(f"{n}sigma_d")
         names[0] = "A1"
         names.insert(1, "A2")
-        chars = np.vstack((chars[0,:], chars[0,:], chars[1:,:]))
-        for i in range(1,n2): # = 2:n2:
-            if i >= n2-i:
+        chars = np.vstack((chars[0, :], chars[0, :], chars[1:, :]))
+        for i in range(1, n2):  # = 2:n2:
+            if i >= n2 - i:
                 break
-            chars = chars[:,[j for j in range(np.shape(chars)[1]) if j != n2-i]] # chars[:,0:-1.!=n2-i+2]
-        nirr = n+3
+            chars = chars[:,
+                          [j for j in range(np.shape(chars)[1]) if j != n2 - i
+                          ]]  # chars[:,0:-1.!=n2-i+2]
+        nirr = n + 3
         names[2] = "B1"
         names.insert(3, "B2")
-        chars = np.vstack((chars[0:3,:], chars[2,:], chars[3:,:]))
+        chars = np.vstack((chars[0:3, :], chars[2, :], chars[3:, :]))
         C2p = np.zeros(nirr)
         sigma_d = np.zeros(nirr)
-        C2p[0:4] = np.array([1,-1,1,-1])
-        sigma_d[0:4] = np.array([1,-1,-1,1])
-        chars = np.hstack((chars, C2p[:,None], sigma_d[:,None]))
+        C2p[0:4] = np.array([1, -1, 1, -1])
+        sigma_d[0:4] = np.array([1, -1, -1, 1])
+        chars = np.hstack((chars, C2p[:, None], sigma_d[:, None]))
     else:
         names, classes, dnchars = Dn_irr(n)
         classes.append("i")
-        for i in range(1,(n>>1)+1): # = 1:n>>1:
-            r,s = reduce(2*n, 2*i+n)
+        for i in range(1, (n >> 1) + 1):  # = 1:n>>1:
+            r, s = reduce(2 * n, 2 * i + n)
             if s > n:
-                s = 2*n-s
+                s = 2 * n - s
             c_class_string(classes, "2S", r, s)
         classes.append(f"{n}sigma_d")
         newnames = []
-        for i in range(len(names)): # = 1:length(names):
-            newnames.append(names[i]+"u")
-            names[i] = names[i]+"g"
+        for i in range(len(names)):  # = 1:length(names):
+            newnames.append(names[i] + "u")
+            names[i] = names[i] + "g"
         names += newnames
         dncharsi = -1 * dnchars
         top = np.hstack((dnchars, dnchars))
         bot = np.hstack((dnchars, dncharsi))
         chars = np.vstack((top, bot))
     return names, classes, chars
-
-
 
 
 @dataclass
@@ -870,24 +927,31 @@ class Symel():
     Deprecated data structure for symmetry elements.
     Still hanging around because of cubic/icosahedral groups and tests.
     """
-    symbol:str
-    vector:np.array # Not defined for E or i, axis vector for Cn and Sn, plane normal vector for sigma
-    rrep:np.array
+    symbol: str
+    vector: np.array  # Not defined for E or i, axis vector for Cn and Sn, plane normal vector for sigma
+    rrep: np.array
+
     def __str__(self) -> str:
-        with np.printoptions(precision=5, suppress=True, formatter={"all":lambda x: f"{x:8.5f}"}):
+        with np.printoptions(precision=5,
+                             suppress=True,
+                             formatter={"all": lambda x: f"{x:8.5f}"}):
             return f"\nSymbol: {self.symbol:>10s}: [{self.rrep[0,:]},{self.rrep[1,:]},{self.rrep[2,:]}]"
+
     def __repr__(self) -> str:
         return self.__str__()
+
     def __eq__(self, other):
-        return self.symbol == other.symbol and np.isclose(self.rrep,other.rrep,atol=1e-10).all()
+        return self.symbol == other.symbol and np.isclose(
+            self.rrep, other.rrep, atol=1e-10).all()
+
 
 def pg_to_symels(PG):
     pg = PointGroup.from_string(PG)
     argerr = f"An invalid point group has been given or "+\
         "unexpected parsing of the point group string has occured: {pg.str}"
-    symels = [Symel("E", None, np.asarray([[1,0,0],[0,1,0],[0,0,1]]))]
-    z_axis = np.array([0,0,1])
-    sigma_h = np.asarray([[1,0,0],[0,1,0],[0,0,-1]])
+    symels = [Symel("E", None, np.asarray([[1, 0, 0], [0, 1, 0], [0, 0, 1]]))]
+    z_axis = np.array([0, 0, 1])
+    sigma_h = np.asarray([[1, 0, 0], [0, 1, 0], [0, 0, -1]])
     if pg.family == "C":
         if pg.subfamily == "h":
             symels.append(Symel("sigma_h", z_axis, sigma_h))
@@ -996,23 +1060,26 @@ def pg_to_symels(PG):
             raise Exception(argerr)
     return symels
 
+
 def generate_Cn(n):
     symels = []
-    axis = np.asarray([0,0,1])
+    axis = np.asarray([0, 0, 1])
     #axis = [0 0 1]'
     cn_r = Cn(axis, n)
-    for i in range(1,n):
+    for i in range(1, n):
         a, b = reduce(n, i)
-        symels.append(Symel(f"C_{a:d}^{b:d}", axis, matrix_power(cn_r,i))) # Cns
+        symels.append(Symel(f"C_{a:d}^{b:d}", axis, matrix_power(cn_r,
+                                                                 i)))  # Cns
     return symels
+
 
 def generate_Sn(n, S2n=False):
     symels = []
-    axis = np.asarray([0,0,1])
+    axis = np.asarray([0, 0, 1])
     sigma_h = reflection_matrix(axis)
     cn_r = Cn(axis, n)
-    if S2n: # Generating improper rotations for S2n PG
-        for i in range(1,n):
+    if S2n:  # Generating improper rotations for S2n PG
+        for i in range(1, n):
             if i % 2 == 0:
                 continue
             else:
@@ -1020,17 +1087,22 @@ def generate_Sn(n, S2n=False):
                 if a == 2:
                     continue
                 else:
-                    symels.append(Symel(f"S_{a}^{b}", axis, np.dot(matrix_power(cn_r,i),sigma_h)))
+                    symels.append(
+                        Symel(f"S_{a}^{b}", axis,
+                              np.dot(matrix_power(cn_r, i), sigma_h)))
         return symels
-    for i in range(1,n):
+    for i in range(1, n):
         a, b = reduce(n, i)
         if b % 2 == 0:
             b += a
         if a == 2:
             continue
         else:
-            symels.append(Symel(f"S_{a}^{b}", axis, np.dot(matrix_power(cn_r,i),sigma_h))) # Sns
+            symels.append(
+                Symel(f"S_{a}^{b}", axis, np.dot(matrix_power(cn_r, i),
+                                                 sigma_h)))  # Sns
     return symels
+
 
 def generate_sigma_v(n):
     if n % 2 == 0:
@@ -1038,24 +1110,28 @@ def generate_sigma_v(n):
     else:
         nsigma_vs = n
     symels = []
-    x_axis = np.asarray([1,0,0]) # Orient C2 and sigma_v along x-axis
-    z_axis = np.asarray([0,0,1])
+    x_axis = np.asarray([1, 0, 0])  # Orient C2 and sigma_v along x-axis
+    z_axis = np.asarray([0, 0, 1])
     rot_mat = Cn(z_axis, n)
     for i in range(nsigma_vs):
-        axis = np.cross(np.dot(matrix_power(rot_mat,i), x_axis),z_axis)
+        axis = np.cross(np.dot(matrix_power(rot_mat, i), x_axis), z_axis)
         symels.append(Symel(f"sigma_v({i+1})", axis, reflection_matrix(axis)))
     return symels
 
+
 def generate_sigma_d(n):
     symels = []
-    x_axis = np.asarray([1,0,0]) # Orient C2 and sigma_v along x-axis
-    z_axis = np.asarray([0,0,1])
-    rot_mat = Cn(z_axis, 2*n)
-    base_axis = np.dot(Cn(z_axis, 4*n),x_axis) # Rotate x-axis by Cn/2 to produce an axis for sigma_d's
+    x_axis = np.asarray([1, 0, 0])  # Orient C2 and sigma_v along x-axis
+    z_axis = np.asarray([0, 0, 1])
+    rot_mat = Cn(z_axis, 2 * n)
+    base_axis = np.dot(
+        Cn(z_axis, 4 * n),
+        x_axis)  # Rotate x-axis by Cn/2 to produce an axis for sigma_d's
     for i in range(n):
-        axis = np.cross(np.dot(matrix_power(rot_mat,i), base_axis),z_axis)
+        axis = np.cross(np.dot(matrix_power(rot_mat, i), base_axis), z_axis)
         symels.append(Symel(f"sigma_d({i+1})", axis, reflection_matrix(axis)))
     return symels
+
 
 def generate_C2p(n):
     if n % 2 == 0:
@@ -1063,23 +1139,25 @@ def generate_C2p(n):
     else:
         nn = n
     symels = []
-    x_axis = np.asarray([1,0,0]) # Orient C2 and sigma_v along x-axis
-    rot_mat = Cn([0,0,1], n)
+    x_axis = np.asarray([1, 0, 0])  # Orient C2 and sigma_v along x-axis
+    rot_mat = Cn([0, 0, 1], n)
     for i in range(nn):
-        axis = np.dot(matrix_power(rot_mat,i), x_axis)
+        axis = np.dot(matrix_power(rot_mat, i), x_axis)
         symels.append(Symel(f"C_2'({i+1})", axis, Cn(axis, 2)))
     return symels
+
 
 def generate_C2pp(n):
     nn = n >> 1
     symels = []
-    x_axis = np.asarray([1,0,0])
-    rot_mat = Cn([0,0,1], n)
-    base_axis = np.dot(Cn([0,0,1], 2*n),x_axis)
+    x_axis = np.asarray([1, 0, 0])
+    rot_mat = Cn([0, 0, 1], n)
+    base_axis = np.dot(Cn([0, 0, 1], 2 * n), x_axis)
     for i in range(nn):
-        axis = np.dot(matrix_power(rot_mat,i), base_axis)
+        axis = np.dot(matrix_power(rot_mat, i), base_axis)
         symels.append(Symel(f"C_2''({i+1})", axis, Cn(axis, 2)))
     return symels
+
 
 def generate_T():
     """
@@ -1099,7 +1177,7 @@ def generate_T():
     namelist = ("alpha", "beta", "gamma", "delta")
     for i in range(4):
         C3 = Cn(C3list[i], 3)
-        C3s = matrix_power(C3,2)
+        C3s = matrix_power(C3, 2)
         symels.append(Symel(f"C_3({namelist[i]})", C3list[i], C3))
         symels.append(Symel(f"C_3^2({namelist[i]})", C3list[i], C3s))
     # Generate C2's
@@ -1113,6 +1191,7 @@ def generate_T():
         symels.append(Symel(f"C_2({namelist[i]})", C2list[i], C2))
     return symels
 
+
 def generate_Td():
     """
     Generate symmetry elements for the Td point group.
@@ -1124,13 +1203,15 @@ def generate_Td():
     symels = generate_T()
     # σd's
     sigma_d_1v = normalize(np.array([1.0, 1.0, 0.0]))
-    sigma_d_2v = normalize(np.array([1.0,-1.0, 0.0]))
+    sigma_d_2v = normalize(np.array([1.0, -1.0, 0.0]))
     sigma_d_3v = normalize(np.array([1.0, 0.0, 1.0]))
-    sigma_d_4v = normalize(np.array([1.0, 0.0,-1.0]))
+    sigma_d_4v = normalize(np.array([1.0, 0.0, -1.0]))
     sigma_d_5v = normalize(np.array([0.0, 1.0, 1.0]))
-    sigma_d_6v = normalize(np.array([0.0, 1.0,-1.0]))
-    sigmas = [sigma_d_1v,sigma_d_2v,sigma_d_3v,sigma_d_4v,sigma_d_5v,sigma_d_6v]
-    namelist = ["xyp","xym","xzp","xzm","yzp","yzm"]
+    sigma_d_6v = normalize(np.array([0.0, 1.0, -1.0]))
+    sigmas = [
+        sigma_d_1v, sigma_d_2v, sigma_d_3v, sigma_d_4v, sigma_d_5v, sigma_d_6v
+    ]
+    namelist = ["xyp", "xym", "xzp", "xzm", "yzp", "yzm"]
     for i in range(6):
         sigma_d = reflection_matrix(sigmas[i])
         symels.append(Symel(f"sigma_d({namelist[i]})", sigmas[i], sigma_d))
@@ -1139,13 +1220,14 @@ def generate_Td():
     S4_2v = np.array([0.0, 1.0, 0.0])
     S4_3v = np.array([0.0, 0.0, 1.0])
     S4vlist = [S4_1v, S4_2v, S4_3v]
-    namelist = ["x","y","z"]
+    namelist = ["x", "y", "z"]
     for i in range(3):
         S4 = Sn(S4vlist[i], 4)
-        S43 = matrix_power(S4,3)
+        S43 = matrix_power(S4, 3)
         symels.append(Symel(f"S_4({namelist[i]})", S4vlist[i], S4))
         symels.append(Symel(f"S_4^3({namelist[i]})", S4vlist[i], S43))
     return symels
+
 
 def generate_Th():
     """
@@ -1159,10 +1241,10 @@ def generate_Th():
     # i
     symels.append(Symel("i", None, inversion_matrix()))
     # S6
-    S6_1v = normalize(np.array([ 1.0, 1.0, 1.0]))
-    S6_2v = normalize(np.array([-1.0, 1.0,-1.0]))
-    S6_3v = normalize(np.array([-1.0,-1.0, 1.0]))
-    S6_4v = normalize(np.array([ 1.0,-1.0,-1.0]))
+    S6_1v = normalize(np.array([1.0, 1.0, 1.0]))
+    S6_2v = normalize(np.array([-1.0, 1.0, -1.0]))
+    S6_3v = normalize(np.array([-1.0, -1.0, 1.0]))
+    S6_4v = normalize(np.array([1.0, -1.0, -1.0]))
     S6list = [S6_1v, S6_2v, S6_3v, S6_4v]
     namelist = ["alpha", "beta", "gamma", "delta"]
     for i in range(4):
@@ -1174,12 +1256,13 @@ def generate_Th():
     sigma_h_xv = np.array([1.0, 0.0, 0.0])
     sigma_h_yv = np.array([0.0, 1.0, 0.0])
     sigma_h_zv = np.array([0.0, 0.0, 1.0])
-    sigma_list = [sigma_h_xv,sigma_h_yv,sigma_h_zv]
+    sigma_list = [sigma_h_xv, sigma_h_yv, sigma_h_zv]
     namelist = ["x", "y", "z"]
     for i in range(3):
         sigma_h = reflection_matrix(sigma_list[i])
         symels.append(Symel(f"sigma_h({namelist[i]})", sigma_list[i], sigma_h))
     return symels
+
 
 def generate_O():
     """
@@ -1197,37 +1280,38 @@ def generate_O():
     namelist = ["x", "y", "z"]
     for i in range(3):
         C4 = Cn(C4list[i], 4)
-        C42 = matrix_power(C4,2)
-        C43 = matrix_power(C4,3)
+        C42 = matrix_power(C4, 2)
+        C43 = matrix_power(C4, 3)
         symels.append(Symel(f"C_4({namelist[i]})", C4list[i], C4))
         symels.append(Symel(f"C_2({namelist[i]})", C4list[i], C42))
         symels.append(Symel(f"C_4^3({namelist[i]})", C4list[i], C43))
     # C3
     C3_1v = normalize(np.array([1.0, 1.0, 1.0]))
-    C3_2v = normalize(np.array([1.0,-1.0, 1.0]))
-    C3_3v = normalize(np.array([1.0, 1.0,-1.0]))
-    C3_4v = normalize(np.array([1.0,-1.0,-1.0]))
+    C3_2v = normalize(np.array([1.0, -1.0, 1.0]))
+    C3_3v = normalize(np.array([1.0, 1.0, -1.0]))
+    C3_4v = normalize(np.array([1.0, -1.0, -1.0]))
     C3list = [C3_1v, C3_2v, C3_3v, C3_4v]
     namelist = ["alpha", "beta", "gamma", "delta"]
     for i in range(4):
         C3 = Cn(C3list[i], 3)
-        C32 = matrix_power(C3,2)
+        C32 = matrix_power(C3, 2)
         symels.append(Symel(f"C_3({namelist[i]})", C3list[i], C3))
         symels.append(Symel(f"C_3^2({namelist[i]})", C3list[i], C32))
     # C2
     C2_1v = normalize(np.array([1.0, 0.0, 1.0]))
-    C2_2v = normalize(np.array([1.0, 0.0,-1.0]))
+    C2_2v = normalize(np.array([1.0, 0.0, -1.0]))
     C2_3v = normalize(np.array([1.0, 1.0, 0.0]))
-    C2_4v = normalize(np.array([1.0,-1.0, 0.0]))
+    C2_4v = normalize(np.array([1.0, -1.0, 0.0]))
     C2_5v = normalize(np.array([0.0, 1.0, 1.0]))
-    C2_6v = normalize(np.array([0.0,-1.0, 1.0]))
+    C2_6v = normalize(np.array([0.0, -1.0, 1.0]))
 
     C2list = [C2_1v, C2_2v, C2_3v, C2_4v, C2_5v, C2_6v]
     namelist = ["xzp", "xzm", "xyp", "xym", "yzp", "yzm"]
     for i in range(6):
-        C2 = Cn(C2list[i],2)
+        C2 = Cn(C2list[i], 2)
         symels.append(Symel(f"C_2({namelist[i]})", C2list[i], C2))
     return symels
+
 
 def generate_Oh():
     """
@@ -1247,36 +1331,39 @@ def generate_Oh():
     for i in range(3):
         S4 = Sn(S4list[i], 4)
         sigma_h = reflection_matrix(S4list[i])
-        S43 = matrix_power(S4,3)
+        S43 = matrix_power(S4, 3)
         symels.append(Symel(f"S_4({namelist[i]})", S4list[i], S4))
         symels.append(Symel(f"sigma_h({namelist[i]})", S4list[i], sigma_h))
         symels.append(Symel(f"S_4^3({namelist[i]})", S4list[i], S43))
     # S6
     S6_1v = normalize(np.array([1.0, 1.0, 1.0]))
-    S6_2v = normalize(np.array([1.0,-1.0, 1.0]))
-    S6_3v = normalize(np.array([1.0, 1.0,-1.0]))
-    S6_4v = normalize(np.array([1.0,-1.0,-1.0]))
+    S6_2v = normalize(np.array([1.0, -1.0, 1.0]))
+    S6_3v = normalize(np.array([1.0, 1.0, -1.0]))
+    S6_4v = normalize(np.array([1.0, -1.0, -1.0]))
     S6list = [S6_1v, S6_2v, S6_3v, S6_4v]
     namelist = ["alpha", "beta", "gamma", "delta"]
     for i in range(4):
         S6 = Sn(S6list[i], 6)
-        S65 = matrix_power(S6,5)
+        S65 = matrix_power(S6, 5)
         symels.append(Symel(f"S_6({namelist[i]})", S6list[i], S6))
         symels.append(Symel(f"S_6^5({namelist[i]})", S6list[i], S65))
     # C2
     sigma_d_1v = normalize(np.array([1.0, 0.0, 1.0]))
-    sigma_d_2v = normalize(np.array([1.0, 0.0,-1.0]))
+    sigma_d_2v = normalize(np.array([1.0, 0.0, -1.0]))
     sigma_d_3v = normalize(np.array([1.0, 1.0, 0.0]))
-    sigma_d_4v = normalize(np.array([1.0,-1.0, 0.0]))
+    sigma_d_4v = normalize(np.array([1.0, -1.0, 0.0]))
     sigma_d_5v = normalize(np.array([0.0, 1.0, 1.0]))
-    sigma_d_6v = normalize(np.array([0.0,-1.0, 1.0]))
+    sigma_d_6v = normalize(np.array([0.0, -1.0, 1.0]))
 
-    sigma_dlist = [sigma_d_1v, sigma_d_2v, sigma_d_3v, sigma_d_4v, sigma_d_5v, sigma_d_6v]
+    sigma_dlist = [
+        sigma_d_1v, sigma_d_2v, sigma_d_3v, sigma_d_4v, sigma_d_5v, sigma_d_6v
+    ]
     namelist = ["xzp", "xzm", "xyp", "xym", "yzp", "yzm"]
     for i in range(6):
         sigma_d = reflection_matrix(sigma_dlist[i])
         symels.append(Symel(f"sigma_d({namelist[i]})", sigma_dlist[i], sigma_d))
     return symels
+
 
 def generate_I():
     """
@@ -1288,10 +1375,10 @@ def generate_I():
     faces, vertices, edgecenters = generate_I_vectors()
     # C5 (face vectors)
     for i in range(6):
-        C5 = Cn(faces[i],5)
-        C52 = matrix_power(C5,2)
-        C53 = matrix_power(C5,3)
-        C54 = matrix_power(C5,4)
+        C5 = Cn(faces[i], 5)
+        C52 = matrix_power(C5, 2)
+        C53 = matrix_power(C5, 3)
+        C54 = matrix_power(C5, 4)
         symels.append(Symel(f"C_5({i})", faces[i], C5))
         symels.append(Symel(f"C_5^2({i})", faces[i], C52))
         symels.append(Symel(f"C_5^3({i})", faces[i], C53))
@@ -1299,17 +1386,18 @@ def generate_I():
 
     # C3 (vertex vectors)
     for i in range(10):
-        C3 = Cn(vertices[i],3)
-        C32 = matrix_power(C3,2)
+        C3 = Cn(vertices[i], 3)
+        C32 = matrix_power(C3, 2)
         symels.append(Symel(f"C_3({i})", vertices[i], C3))
         symels.append(Symel(f"C_3^2({i})", vertices[i], C32))
 
     # C2 (edge vectors)
     for i in range(15):
-        C2 = Cn(edgecenters[i],2)
+        C2 = Cn(edgecenters[i], 2)
         symels.append(Symel(f"C_2({i})", edgecenters[i], C2))
 
     return symels
+
 
 def generate_Ih():
     """
@@ -1322,10 +1410,10 @@ def generate_Ih():
     symels.append(Symel("i", None, inversion_matrix()))
     # S10 (face vectors)
     for i in range(6):
-        S10 = Sn(faces[i],10)
-        S103 = matrix_power(S10,3)
-        S107 = matrix_power(S10,7)
-        S109 = matrix_power(S10,9)
+        S10 = Sn(faces[i], 10)
+        S103 = matrix_power(S10, 3)
+        S107 = matrix_power(S10, 7)
+        S109 = matrix_power(S10, 9)
         symels.append(Symel(f"S_10({i})", faces[i], S10))
         symels.append(Symel(f"S_10^3({i})", faces[i], S103))
         symels.append(Symel(f"S_10^7({i})", faces[i], S107))
@@ -1333,8 +1421,8 @@ def generate_Ih():
 
     # S6 (vertex vectors)
     for i in range(10):
-        S6 = Sn(vertices[i],6)
-        S65 = matrix_power(S6,5)
+        S6 = Sn(vertices[i], 6)
+        S65 = matrix_power(S6, 5)
         symels.append(Symel(f"S_6({i})", vertices[i], S6))
         symels.append(Symel(f"S_6^5({i})", vertices[i], S65))
 
@@ -1344,6 +1432,7 @@ def generate_Ih():
         symels.append(Symel(f"sigma({i})", edgecenters[i], sigma_i))
 
     return symels
+
 
 def generate_I_vectors():
     """
@@ -1412,66 +1501,141 @@ def generate_I_vectors():
     #        vertex_vectors.append(v)
     face_vectors = [
         np.array([0.0, 0.0, 1.0]),
-        np.array([0.0, 2/np.sqrt(5), 1/np.sqrt(5)]),
-        np.array([-np.sqrt((5+np.sqrt(5))/10), (5-np.sqrt(5))/10, 1/np.sqrt(5)]),
-        np.array([ np.sqrt((5+np.sqrt(5))/10), (5-np.sqrt(5))/10, 1/np.sqrt(5)]),
-        np.array([-np.sqrt((5-np.sqrt(5))/10),-(5+np.sqrt(5))/10, 1/np.sqrt(5)]),
-        np.array([ np.sqrt((5-np.sqrt(5))/10),-(5+np.sqrt(5))/10, 1/np.sqrt(5)])]
+        np.array([0.0, 2 / np.sqrt(5), 1 / np.sqrt(5)]),
+        np.array([
+            -np.sqrt((5 + np.sqrt(5)) / 10), (5 - np.sqrt(5)) / 10,
+            1 / np.sqrt(5)
+        ]),
+        np.array([
+            np.sqrt((5 + np.sqrt(5)) / 10), (5 - np.sqrt(5)) / 10,
+            1 / np.sqrt(5)
+        ]),
+        np.array([
+            -np.sqrt((5 - np.sqrt(5)) / 10), -(5 + np.sqrt(5)) / 10,
+            1 / np.sqrt(5)
+        ]),
+        np.array([
+            np.sqrt((5 - np.sqrt(5)) / 10), -(5 + np.sqrt(5)) / 10,
+            1 / np.sqrt(5)
+        ])
+    ]
     vertex_vectors = [
-        np.array([0.0, -np.sqrt((2*(5+np.sqrt(5)))/15), np.sqrt((5-2*np.sqrt(5))/15)]),
-        np.array([0.0, -np.sqrt((2*(5-np.sqrt(5)))/15), np.sqrt((5+2*np.sqrt(5))/15)]),
-        np.array([-1/np.sqrt(3), np.sqrt((5+2*np.sqrt(5))/15), np.sqrt((5-2*np.sqrt(5))/15)]),
-        np.array([-1/np.sqrt(3),-np.sqrt((5-2*np.sqrt(5))/15), np.sqrt((5+2*np.sqrt(5))/15)]),
-        np.array([ 1/np.sqrt(3), np.sqrt((5+2*np.sqrt(5))/15), np.sqrt((5-2*np.sqrt(5))/15)]),
-        np.array([ 1/np.sqrt(3),-np.sqrt((5-2*np.sqrt(5))/15), np.sqrt((5+2*np.sqrt(5))/15)]),
-        np.array([-np.sqrt((3*np.sqrt(5)+5)/(6*np.sqrt(5))),
-                  -np.sqrt((5-np.sqrt(5))/30), np.sqrt((5-2*np.sqrt(5))/15)]),
-        np.array([ np.sqrt((3*np.sqrt(5)-5)/(6*np.sqrt(5))), 
-                  np.sqrt((5+np.sqrt(5))/30), np.sqrt((5+2*np.sqrt(5))/15)]),
-        np.array([-np.sqrt((3*np.sqrt(5)-5)/(6*np.sqrt(5))),
-                  np.sqrt((5+np.sqrt(5))/30), np.sqrt((5+2*np.sqrt(5))/15)]),
-        np.array([ np.sqrt((3*np.sqrt(5)+5)/(6*np.sqrt(5))),
-                  -np.sqrt((5-np.sqrt(5))/30), np.sqrt((5-2*np.sqrt(5))/15)]),
+        np.array([
+            0.0, -np.sqrt((2 * (5 + np.sqrt(5))) / 15),
+            np.sqrt((5 - 2 * np.sqrt(5)) / 15)
+        ]),
+        np.array([
+            0.0, -np.sqrt((2 * (5 - np.sqrt(5))) / 15),
+            np.sqrt((5 + 2 * np.sqrt(5)) / 15)
+        ]),
+        np.array([
+            -1 / np.sqrt(3),
+            np.sqrt((5 + 2 * np.sqrt(5)) / 15),
+            np.sqrt((5 - 2 * np.sqrt(5)) / 15)
+        ]),
+        np.array([
+            -1 / np.sqrt(3), -np.sqrt((5 - 2 * np.sqrt(5)) / 15),
+            np.sqrt((5 + 2 * np.sqrt(5)) / 15)
+        ]),
+        np.array([
+            1 / np.sqrt(3),
+            np.sqrt((5 + 2 * np.sqrt(5)) / 15),
+            np.sqrt((5 - 2 * np.sqrt(5)) / 15)
+        ]),
+        np.array([
+            1 / np.sqrt(3), -np.sqrt((5 - 2 * np.sqrt(5)) / 15),
+            np.sqrt((5 + 2 * np.sqrt(5)) / 15)
+        ]),
+        np.array([
+            -np.sqrt((3 * np.sqrt(5) + 5) / (6 * np.sqrt(5))), -np.sqrt(
+                (5 - np.sqrt(5)) / 30),
+            np.sqrt((5 - 2 * np.sqrt(5)) / 15)
+        ]),
+        np.array([
+            np.sqrt((3 * np.sqrt(5) - 5) / (6 * np.sqrt(5))),
+            np.sqrt((5 + np.sqrt(5)) / 30),
+            np.sqrt((5 + 2 * np.sqrt(5)) / 15)
+        ]),
+        np.array([
+            -np.sqrt((3 * np.sqrt(5) - 5) / (6 * np.sqrt(5))),
+            np.sqrt((5 + np.sqrt(5)) / 30),
+            np.sqrt((5 + 2 * np.sqrt(5)) / 15)
+        ]),
+        np.array([
+            np.sqrt((3 * np.sqrt(5) + 5) / (6 * np.sqrt(5))), -np.sqrt(
+                (5 - np.sqrt(5)) / 30),
+            np.sqrt((5 - 2 * np.sqrt(5)) / 15)
+        ]),
     ]
     edgecenters = [
-        np.array([0.0, np.sqrt((5+np.sqrt(5))/10),-np.sqrt((5-np.sqrt(5))/10)]),
-        np.array([0.0, np.sqrt((5-np.sqrt(5))/10), np.sqrt((5+np.sqrt(5))/10)]),
-        np.array([0.5,-np.sqrt(1+(2/np.sqrt(5)))/2,-np.sqrt((5-np.sqrt(5))/10)]),
-        np.array([0.5, np.sqrt(1-(2/np.sqrt(5)))/2, np.sqrt((5+np.sqrt(5))/10)]),
-        np.array([0.5,-np.sqrt(1-(2/np.sqrt(5)))/2,-np.sqrt((5+np.sqrt(5))/10)]),
-        np.array([0.5, np.sqrt(1+(2/np.sqrt(5)))/2, np.sqrt((5-np.sqrt(5))/10)]),
+        np.array([
+            0.0,
+            np.sqrt((5 + np.sqrt(5)) / 10), -np.sqrt((5 - np.sqrt(5)) / 10)
+        ]),
+        np.array([
+            0.0,
+            np.sqrt((5 - np.sqrt(5)) / 10),
+            np.sqrt((5 + np.sqrt(5)) / 10)
+        ]),
+        np.array([
+            0.5, -np.sqrt(1 + (2 / np.sqrt(5))) / 2, -np.sqrt(
+                (5 - np.sqrt(5)) / 10)
+        ]),
+        np.array([
+            0.5,
+            np.sqrt(1 - (2 / np.sqrt(5))) / 2,
+            np.sqrt((5 + np.sqrt(5)) / 10)
+        ]),
+        np.array([
+            0.5, -np.sqrt(1 - (2 / np.sqrt(5))) / 2, -np.sqrt(
+                (5 + np.sqrt(5)) / 10)
+        ]),
+        np.array([
+            0.5,
+            np.sqrt(1 + (2 / np.sqrt(5))) / 2,
+            np.sqrt((5 - np.sqrt(5)) / 10)
+        ]),
         np.array([1.0, 0.0, 0.0]),
-        np.array([(np.sqrt(5)-1)/4,-np.sqrt((5+np.sqrt(5))/10)/2, np.sqrt((5+np.sqrt(5))/10)]),
-        np.array([(np.sqrt(5)-1)/4, np.sqrt((5+np.sqrt(5))/10)/2,-np.sqrt((5+np.sqrt(5))/10)]),
-        np.array([(np.sqrt(5)-1)/4,-np.sqrt((5+np.sqrt(5))/2)/2, 0.0]),
-        np.array([(np.sqrt(5)-1)/4, np.sqrt((5+np.sqrt(5))/2)/2, 0.0]),
-        np.array([(np.sqrt(5)+1)/4,-np.sqrt((5-np.sqrt(5))/10)/2, np.sqrt((5-np.sqrt(5))/10)]),
-        np.array([(np.sqrt(5)+1)/4, np.sqrt((5-np.sqrt(5))/10)/2,-np.sqrt((5-np.sqrt(5))/10)]),
-        np.array([(np.sqrt(5)+1)/4,-np.sqrt((5-np.sqrt(5))/2)/2, 0.0]),
-        np.array([(np.sqrt(5)+1)/4, np.sqrt((5-np.sqrt(5))/2)/2, 0.0]),
+        np.array([(np.sqrt(5) - 1) / 4, -np.sqrt((5 + np.sqrt(5)) / 10) / 2,
+                  np.sqrt((5 + np.sqrt(5)) / 10)]),
+        np.array([(np.sqrt(5) - 1) / 4,
+                  np.sqrt((5 + np.sqrt(5)) / 10) / 2, -np.sqrt(
+                      (5 + np.sqrt(5)) / 10)]),
+        np.array([(np.sqrt(5) - 1) / 4, -np.sqrt((5 + np.sqrt(5)) / 2) / 2,
+                  0.0]),
+        np.array([(np.sqrt(5) - 1) / 4,
+                  np.sqrt((5 + np.sqrt(5)) / 2) / 2, 0.0]),
+        np.array([(np.sqrt(5) + 1) / 4, -np.sqrt((5 - np.sqrt(5)) / 10) / 2,
+                  np.sqrt((5 - np.sqrt(5)) / 10)]),
+        np.array([(np.sqrt(5) + 1) / 4,
+                  np.sqrt((5 - np.sqrt(5)) / 10) / 2, -np.sqrt(
+                      (5 - np.sqrt(5)) / 10)]),
+        np.array([(np.sqrt(5) + 1) / 4, -np.sqrt((5 - np.sqrt(5)) / 2) / 2,
+                  0.0]),
+        np.array([(np.sqrt(5) + 1) / 4,
+                  np.sqrt((5 - np.sqrt(5)) / 2) / 2, 0.0]),
     ]
 
     return (face_vectors, vertex_vectors, edgecenters)
 
 
-
-
-def point_group_classes(point_group,tol=1e-4):
+def point_group_classes(point_group, tol=1e-4):
     """
     Given a list of symmetries that form a point
     group. Identify the classes
     point_group : list of symmetries
     """
     # point_group = (nsym,3,3)
-    pg_classes  = []
+    pg_classes = []
 
     nsym = len(point_group)
-    pg_tree = KDTree(point_group.reshape(nsym,-1))
+    pg_tree = KDTree(point_group.reshape(nsym, -1))
 
     for isym in range(nsym):
-        sym_conjugates = point_group.transpose(0,2,1)@point_group[isym][None,:,:]@point_group
-        dd, ii = pg_tree.query(sym_conjugates.reshape(nsym,-1), k=1)
-        if len(dd[dd>tol]) != 0:
+        sym_conjugates = point_group.transpose(
+            0, 2, 1) @ point_group[isym][None, :, :] @ point_group
+        dd, ii = pg_tree.query(sym_conjugates.reshape(nsym, -1), k=1)
+        if len(dd[dd > tol]) != 0:
             exit("Not a point group")
         s1_tmp = set(ii)
         if s1_tmp not in pg_classes:
@@ -1480,16 +1644,16 @@ def point_group_classes(point_group,tol=1e-4):
     return [list(item) for item in set(tuple(row) for row in pg_classes)]
 
 
-def vec_similar(vec1,vec2,tol=1e-3):
+def vec_similar(vec1, vec2, tol=1e-3):
     """
     Checks if two matrices are parallel
     """
-    v1 = vec1/np.linalg.norm(vec1)
-    v2 = vec2/np.linalg.norm(vec2)
-    if abs(abs(np.dot(v1,v2))-1) < tol: return True
-    else : return False
-
-
+    v1 = vec1 / np.linalg.norm(vec1)
+    v2 = vec2 / np.linalg.norm(vec2)
+    if abs(abs(np.dot(v1, v2)) - 1) < tol:
+        return True
+    else:
+        return False
 
 
 def find_axis_angle(Rmat):
@@ -1500,31 +1664,32 @@ def find_axis_angle(Rmat):
     and nfold = 0
     """
     det = np.linalg.det(Rmat)
-    A = Rmat*det
-    if np.abs(A-np.eye(3)).sum() < 1e-4:
-        return 0, np.array([0,0,0])
+    A = Rmat * det
+    if np.abs(A - np.eye(3)).sum() < 1e-4:
+        return 0, np.array([0, 0, 0])
     ###
-    w,v = np.linalg.eig(A)
-    one_idx = np.argmin(np.abs(w-1))
-    assert np.abs(w[one_idx]-1)<1e-4
-    axis = v[:,one_idx]
-    axis = axis/np.linalg.norm(axis)
+    w, v = np.linalg.eig(A)
+    one_idx = np.argmin(np.abs(w - 1))
+    assert np.abs(w[one_idx] - 1) < 1e-4
+    axis = v[:, one_idx]
+    axis = axis / np.linalg.norm(axis)
     # find angle
-    cos_angle = np.trace(A)*0.5 - 0.5
-    Kmat = np.zeros(9,dtype=complex)
+    cos_angle = np.trace(A) * 0.5 - 0.5
+    Kmat = np.zeros(9, dtype=complex)
     Kmat[1] = -axis[2]
-    Kmat[2] =  axis[1]
-    Kmat[3] =  axis[2]
+    Kmat[2] = axis[1]
+    Kmat[3] = axis[2]
     Kmat[5] = -axis[0]
     Kmat[6] = -axis[1]
-    Kmat[7] =  axis[0]
-    sin_angle = -0.5*np.trace(Kmat.reshape(3,3)@A).real
-    if abs(sin_angle) < 1e-3: sin_angle = abs(sin_angle)
-    angle = np.arctan2(sin_angle,cos_angle)
+    Kmat[7] = axis[0]
+    sin_angle = -0.5 * np.trace(Kmat.reshape(3, 3) @ A).real
+    if abs(sin_angle) < 1e-3:
+        sin_angle = abs(sin_angle)
+    angle = np.arctan2(sin_angle, cos_angle)
     return angle, axis
 
 
-def fix_axis_angle_gauge(axis,nfold):
+def fix_axis_angle_gauge(axis, nfold):
     """
     Fix the gauge of the provided axis. and changes sign
     of nfold according to that
@@ -1532,10 +1697,12 @@ def fix_axis_angle_gauge(axis,nfold):
     is real.
     """
     axis_tmp = np.real(axis)
-    for i in [2,1,0]:
+    for i in [2, 1, 0]:
         if abs(axis_tmp[i]) > 1e-4:
-            if axis_tmp[i] < 0: return -np.array(axis),-nfold
-            else : return axis, nfold
+            if axis_tmp[i] < 0:
+                return -np.array(axis), -nfold
+            else:
+                return axis, nfold
     return axis, nfold
 
 
@@ -1557,21 +1724,28 @@ def find_symm_axis(sym_mats):
         ## check if this is S:
         w = np.linalg.eigvals(isym)
         impro_rot = False
-        if np.abs(w-1).min() >1e-3: impro_rot = True
+        if np.abs(w - 1).min() > 1e-3:
+            impro_rot = True
         t, ax = find_axis_angle(isym)
         if impro_rot and abs(t) > 1e-2:
-            if t > 0: t -= np.pi
-            else : t += np.pi
+            if t > 0:
+                t -= np.pi
+            else:
+                t += np.pi
         if (abs(t) > 1e-2):
-            t = int(np.rint(2*np.pi/t))
-            ax,t = fix_axis_angle_gauge(ax,t)
-        else : t = 0
-        if abs(t) <= 2: t = abs(t)
-        axes.append(ax); nfold.append(t)
+            t = int(np.rint(2 * np.pi / t))
+            ax, t = fix_axis_angle_gauge(ax, t)
+        else:
+            t = 0
+        if abs(t) <= 2:
+            t = abs(t)
+        axes.append(ax)
+        nfold.append(t)
 
     axes = np.array(axes)
-    nfold = np.array(nfold,dtype=int)
+    nfold = np.array(nfold, dtype=int)
     return [dets, nfold, axes]
+
 
 def get_point_grp(symm_mats):
     ## Works for only crystallographic point groups !
@@ -1589,60 +1763,74 @@ def get_point_grp(symm_mats):
     #
     nidx = np.argmax(np.abs(nfold[dets > 0]))
     ## find principal axis and nfold symmetry
-    n = abs(nfold[dets>0][nidx]) ## nfold
-    paxis = axes[dets>0,:][nidx]
-    Cn = symm_mats[dets>0,:,:][nidx]
+    n = abs(nfold[dets > 0][nidx])  ## nfold
+    paxis = axes[dets > 0, :][nidx]
+    Cn = symm_mats[dets > 0, :, :][nidx]
 
     if order == 2 and n == 0:
         ## check if it Cs
-        if np.abs(nfold).max() > 0 :
+        if np.abs(nfold).max() > 0:
             return "Cs"
-        else :
+        else:
             return "Ci"
     # if order == 2 and n == 2:
     #     return "C_2"
     nfold_abs = np.abs(nfold)
     inversion_present = len(nfold_abs[nfold_abs == 0]) > 1
-    if len(nfold_abs[np.logical_and(dets > 0,nfold_abs == 3)]) > 2:
+    if len(nfold_abs[np.logical_and(dets > 0, nfold_abs == 3)]) > 2:
         ## High symmetry points (O/T)
-        if len(nfold_abs[np.logical_and(dets > 0,nfold_abs == 4)]) > 2:
+        if len(nfold_abs[np.logical_and(dets > 0, nfold_abs == 4)]) > 2:
             ## Oh/O
-            if inversion_present: return "Oh"
-            else : return "O"
+            if inversion_present:
+                return "Oh"
+            else:
+                return "O"
         else:
-            if len(nfold[np.logical_and(dets < 0,nfold_abs == 2)]) == 0:
+            if len(nfold[np.logical_and(dets < 0, nfold_abs == 2)]) == 0:
                 return "T"
-            else :
-                if inversion_present: return "Th"
-                else : return "Td"
-    else :
+            else:
+                if inversion_present:
+                    return "Th"
+                else:
+                    return "Td"
+    else:
         ## Low symmetric (C/S/D)
-        nC1 = np.abs(axes[np.logical_and(dets > 0,nfold_abs == 2),:]@paxis)
-        nC_perp = len(nC1[nC1<1e-3])
+        nC1 = np.abs(axes[np.logical_and(dets > 0, nfold_abs == 2), :] @ paxis)
+        nC_perp = len(nC1[nC1 < 1e-3])
         ## is horizontal mirror present ?
-        sig_h = np.abs(np.abs(axes[np.logical_and(dets < 0,nfold_abs == 2),:]@paxis)-1)
-        nsig_h = len(sig_h[sig_h<1e-3])
+        sig_h = np.abs(
+            np.abs(axes[np.logical_and(dets < 0, nfold_abs == 2), :] @ paxis) -
+            1)
+        nsig_h = len(sig_h[sig_h < 1e-3])
         ## number of perpendicular planes
-        sig_v = np.abs(axes[np.logical_and(dets < 0,nfold_abs == 2),:]@paxis)
-        nsig_v = len(sig_v[sig_v<1e-3])
+        sig_v = np.abs(
+            axes[np.logical_and(dets < 0, nfold_abs == 2), :] @ paxis)
+        nsig_v = len(sig_v[sig_v < 1e-3])
         #
-        if n == nC_perp :
+        if n == nC_perp:
             # D groups
-            if nsig_h > 0: return "D%dh" %(n)
-            else :
-                if (n == nsig_v): return "D%dd" %(n) # dihedral plane :
-                else : return "D%d" %(n)
-        else :
+            if nsig_h > 0:
+                return "D%dh" % (n)
+            else:
+                if (n == nsig_v):
+                    return "D%dd" % (n)  # dihedral plane :
+                else:
+                    return "D%d" % (n)
+        else:
             ## C/S groups
-            if  nsig_h > 0: return "C%dh" %(n)
-            else :
-                if n == nsig_v: return "C%dv" %(n)
-                else :
+            if nsig_h > 0:
+                return "C%dh" % (n)
+            else:
+                if n == nsig_v:
+                    return "C%dv" % (n)
+                else:
                     ##
-                    isSsym = len(nfold[np.logical_and(dets < 0,nfold_abs == 2*n)]) > 0
-                    if isSsym: return "S%d" %(2*n)
-                    else: return "C%d" %(n)
-
+                    isSsym = len(nfold[np.logical_and(dets < 0,
+                                                      nfold_abs == 2 * n)]) > 0
+                    if isSsym:
+                        return "S%d" % (2 * n)
+                    else:
+                        return "C%d" % (n)
 
 
 def get_paxis(symm_mats):
@@ -1650,13 +1838,13 @@ def get_paxis(symm_mats):
     ## first find paxis
     order = len(symm_mats)
     if order == 1:
-        return np.array([]) 
-    nidx = np.argmax(nfold[np.logical_and(dets>0,nfold>0)])
+        return np.array([])
+    nidx = np.argmax(nfold[np.logical_and(dets > 0, nfold > 0)])
     if order > 2:
-        paxis = axes[np.logical_and(dets>0,nfold>0),:][nidx]
+        paxis = axes[np.logical_and(dets > 0, nfold > 0), :][nidx]
         return paxis
-    else :
-        paxis = axes[nfold == 2,:]
+    else:
+        paxis = axes[nfold == 2, :]
         return paxis
 
 
@@ -1666,158 +1854,167 @@ def generate_symel_to_class_map(symels, ctab):
     """
     pg = PointGroup.from_string(ctab.name)
     if pg.n is not None:
-        ns = pg.n>>1 # pg.n floor divided by 2
+        ns = pg.n >> 1  # pg.n floor divided by 2
     ncls = len(ctab.classes)
     nsymel = len(symels)
     class_map = np.zeros(nsymel, dtype=np.int32)
-    class_map[0] = 0 # E is always first
+    class_map[0] = 0  # E is always first
     if pg.family == "C":
         if pg.subfamily == "s" or pg.subfamily == "i":
             class_map[1] = 1
         elif pg.subfamily == "h":
             if pg.n % 2 == 0:
-                class_map[3:pg.n+2] = [i for i in range(1,pg.n)] # [2:pg.n] # C_n
-                class_map[2] = pg.n # i
-                class_map[1] = pg.n+ns # σh
-                for i in range(pg.n+2,2*pg.n):# = pg.n+3:2*pg.n # S_n
-                    if i > 3*ns:
-                        class_map[i] = i-ns
+                class_map[3:pg.n + 2] = [i for i in range(1, pg.n)
+                                        ]  # [2:pg.n] # C_n
+                class_map[2] = pg.n  # i
+                class_map[1] = pg.n + ns  # σh
+                for i in range(pg.n + 2, 2 * pg.n):  # = pg.n+3:2*pg.n # S_n
+                    if i > 3 * ns:
+                        class_map[i] = i - ns
                     else:
-                        class_map[i] = i+ns-1
+                        class_map[i] = i + ns - 1
             else:
-                for i in range(1,pg.n): # = 2:pg.n+1 # C_n
-                    class_map[i+1] = i
-                class_map[1] = pg.n # σh
-                for i in range(pg.n+1,2*pg.n): # = pg.n+2:2*pg.n # S_n
+                for i in range(1, pg.n):  # = 2:pg.n+1 # C_n
+                    class_map[i + 1] = i
+                class_map[1] = pg.n  # σh
+                for i in range(pg.n + 1, 2 * pg.n):  # = pg.n+2:2*pg.n # S_n
                     class_map[i] = i
         elif pg.subfamily == "v":
             # The last class is σv (and then σd if n is even), and the last symels are also these!
             cn_class_map(class_map, pg.n, 0, 0)
             if pg.n % 2 == 0:
-                class_map[-pg.n:-ns] = ncls-2
-                class_map[-ns:] = ncls-1
+                class_map[-pg.n:-ns] = ncls - 2
+                class_map[-ns:] = ncls - 1
             else:
-                class_map[-pg.n:] = ncls-1
+                class_map[-pg.n:] = ncls - 1
         else:
-            class_map[1:] = [i for i in range(1,nsymel)] # 2:nsymel
+            class_map[1:] = [i for i in range(1, nsymel)]  # 2:nsymel
     elif pg.family == "S":
         if pg.n % 4 == 0:
-            for i in range(1,pg.n): # = 2:pg.n
-                if i <= ns-1:
-                    class_map[i] = 2*i
+            for i in range(1, pg.n):  # = 2:pg.n
+                if i <= ns - 1:
+                    class_map[i] = 2 * i
                 else:
-                    class_map[i] = 2*(i-ns)+1
+                    class_map[i] = 2 * (i - ns) + 1
         else:
-            class_map[1] = ns # i
-            class_map[2:ns+1] = [i for i in range(1,ns)] # 2:ns # C_n
-            for i in range(ns+1,pg.n): # = ns+2:pg.n # S_n
-                if i > ns+(pg.n>>2):
-                    class_map[i] = i-(pg.n>>2)
+            class_map[1] = ns  # i
+            class_map[2:ns + 1] = [i for i in range(1, ns)]  # 2:ns # C_n
+            for i in range(ns + 1, pg.n):  # = ns+2:pg.n # S_n
+                if i > ns + (pg.n >> 2):
+                    class_map[i] = i - (pg.n >> 2)
                 else:
-                    class_map[i] = i+(pg.n>>2)
+                    class_map[i] = i + (pg.n >> 2)
     elif pg.family == "D":
         if pg.subfamily == "h":
             if pg.n % 2 == 0:
-                class_map[1] = ncls-3 # σh
-                class_map[2] = (ncls>>1) # i
-                cn_class_map(class_map, pg.n, 2, 0) # Cn
-                class_map[pg.n+2:3*ns+2] = ns+1 # C2'
-                class_map[3*ns+2:2*pg.n+2] = ns+2 # C2''
-                for i in range(2*pg.n+2,3*pg.n): # = 2*pg.n+3:3*pg.n+1 # Sn
-                    if i > 3*pg.n-ns:
-                        class_map[i] = i-2*pg.n+3
+                class_map[1] = ncls - 3  # σh
+                class_map[2] = (ncls >> 1)  # i
+                cn_class_map(class_map, pg.n, 2, 0)  # Cn
+                class_map[pg.n + 2:3 * ns + 2] = ns + 1  # C2'
+                class_map[3 * ns + 2:2 * pg.n + 2] = ns + 2  # C2''
+                for i in range(2 * pg.n + 2,
+                               3 * pg.n):  # = 2*pg.n+3:3*pg.n+1 # Sn
+                    if i > 3 * pg.n - ns:
+                        class_map[i] = i - 2 * pg.n + 3
                     else:
-                        class_map[i] = 3*pg.n+4-i
+                        class_map[i] = 3 * pg.n + 4 - i
                 # The result of C2'×i changes depending if pg.n ≡ 0 (mod 4)
                 # but also D2h doesn't need to be flipped because I treated it special
                 if pg.n % 4 == 0 or pg.n == 2:
-                    class_map[-pg.n:-ns] = ncls-2 # σv
-                    class_map[-ns:] = ncls-1 # σd
+                    class_map[-pg.n:-ns] = ncls - 2  # σv
+                    class_map[-ns:] = ncls - 1  # σd
                 else:
-                    class_map[-pg.n:-ns] = ncls-1 # σv
-                    class_map[-ns:] = ncls-2 # σd
+                    class_map[-pg.n:-ns] = ncls - 1  # σv
+                    class_map[-ns:] = ncls - 2  # σd
             else:
-                class_map[1] = (ncls>>1)
+                class_map[1] = (ncls >> 1)
                 cn_class_map(class_map, pg.n, 1, 0)
-                class_map[pg.n+1:2*pg.n+1] = ns+1
-                cn_class_map(class_map, pg.n, 2*pg.n, ns+2)
-                class_map[-1-pg.n+1:] = ncls-1
+                class_map[pg.n + 1:2 * pg.n + 1] = ns + 1
+                cn_class_map(class_map, pg.n, 2 * pg.n, ns + 2)
+                class_map[-1 - pg.n + 1:] = ncls - 1
         elif pg.subfamily == "d":
             if pg.n % 2 == 0:
-                cn_class_map(class_map, pg.n, 0, 0) # Cn
-                class_map[1:pg.n] = 2*class_map[1:pg.n] # 2*class_map[2:pg.n].-1 # Reposition Cn
-                cn_class_map(class_map, pg.n+1, pg.n-1, 0) # Sn
-                class_map[pg.n:2*pg.n] = 2*class_map[pg.n:2*pg.n]-1 
+                cn_class_map(class_map, pg.n, 0, 0)  # Cn
+                class_map[1:pg.n] = 2 * class_map[
+                    1:pg.n]  # 2*class_map[2:pg.n].-1 # Reposition Cn
+                cn_class_map(class_map, pg.n + 1, pg.n - 1, 0)  # Sn
+                class_map[pg.n:2 * pg.n] = 2 * class_map[pg.n:2 * pg.n] - 1
                 # 2*(class_map[pg.n+1:2*pg.n].-1) # Reposition Sn
-                class_map[-2*pg.n:-pg.n] = ncls-2 # C2'
-                class_map[-pg.n:] = ncls-1 # σd
+                class_map[-2 * pg.n:-pg.n] = ncls - 2  # C2'
+                class_map[-pg.n:] = ncls - 1  # σd
             else:
-                class_map[1] = ncls>>1 # i
-                cn_class_map(class_map, pg.n, 1, 0) # Cn
-                for i in range(pg.n+1,2*pg.n): # = pg.n+2:2*pg.n # Sn
-                    if i > pg.n+ns:
-                        class_map[i] = i+2-pg.n
+                class_map[1] = ncls >> 1  # i
+                cn_class_map(class_map, pg.n, 1, 0)  # Cn
+                for i in range(pg.n + 1, 2 * pg.n):  # = pg.n+2:2*pg.n # Sn
+                    if i > pg.n + ns:
+                        class_map[i] = i + 2 - pg.n
                     else:
-                        class_map[i] = 2*pg.n+2-i
-                class_map[-2*pg.n:-pg.n] = ns+1
-                class_map[-pg.n:] = ncls-1 # σd
+                        class_map[i] = 2 * pg.n + 2 - i
+                class_map[-2 * pg.n:-pg.n] = ns + 1
+                class_map[-pg.n:] = ncls - 1  # σd
         else:
-            cn_class_map(class_map, pg.n, 0, 0) # Cn
+            cn_class_map(class_map, pg.n, 0, 0)  # Cn
             if pg.n % 2 == 0:
-                class_map[-pg.n:-ns] = ncls-2 # Cn'
-                class_map[-ns:] = ncls-1 # Cn''
+                class_map[-pg.n:-ns] = ncls - 2  # Cn'
+                class_map[-ns:] = ncls - 1  # Cn''
             else:
-                class_map[-pg.n:] = ncls-1 # Cn
+                class_map[-pg.n:] = ncls - 1  # Cn
     else:
         if pg.family == "T":
             if pg.subfamily == "h":
-                class_map = np.array([0,1,2,1,2,1,2,1,2,3,3,3,
-                                      4,5,6,5,6,5,6,5,6,7,7,7])
+                class_map = np.array([
+                    0, 1, 2, 1, 2, 1, 2, 1, 2, 3, 3, 3, 4, 5, 6, 5, 6, 5, 6, 5,
+                    6, 7, 7, 7
+                ])
             elif pg.subfamily == "d":
-                class_map = np.array([0,1,1,1,1,1,1,1,1,2,2,2,
-                                      4,4,4,4,4,4,3,3,3,3,3,3])
+                class_map = np.array([
+                    0, 1, 1, 1, 1, 1, 1, 1, 1, 2, 2, 2, 4, 4, 4, 4, 4, 4, 3, 3,
+                    3, 3, 3, 3
+                ])
             else:
-                class_map = np.array([0,1,2,1,2,1,2,1,2,3,3,3])
+                class_map = np.array([0, 1, 2, 1, 2, 1, 2, 1, 2, 3, 3, 3])
         elif pg.family == "O":
             if pg.subfamily == "h":
-                class_map = np.array([0,3,4,3,3,4,3,3,4,3,1,1,1,1,1,1,1,1,
-                                      2,2,2,2,2,2,5,6,8,6,6,8,6,6,8,6,7,7,
-                                      7,7,7,7,7,7,9,9,9,9,9,9])
+                class_map = np.array([
+                    0, 3, 4, 3, 3, 4, 3, 3, 4, 3, 1, 1, 1, 1, 1, 1, 1, 1, 2, 2,
+                    2, 2, 2, 2, 5, 6, 8, 6, 6, 8, 6, 6, 8, 6, 7, 7, 7, 7, 7, 7,
+                    7, 7, 9, 9, 9, 9, 9, 9
+                ])
             else:
-                class_map = np.array([0,1,2,1,1,2,1,1,2,1,3,3,
-                                      3,3,3,3,3,3,4,4,4,4,4,4])
+                class_map = np.array([
+                    0, 1, 2, 1, 1, 2, 1, 1, 2, 1, 3, 3, 3, 3, 3, 3, 3, 3, 4, 4,
+                    4, 4, 4, 4
+                ])
         elif pg.family == "I":
             if pg.subfamily == "h":
-                class_map = np.array([0,1,2,2,1,1,2,2,1,1,2,2,1,
-                                      1,2,2,1,1,2,2,1,1,2,2,1,3,
-                                      3,3,3,3,3,3,3,3,3,3,3,3,3,
-                                      3,3,3,3,3,3,4,4,4,4,4,4,4,
-                                      4,4,4,4,4,4,4,4,5,6,7,7,6,
-                                      6,7,7,6,6,7,7,6,6,7,7,6,6,
-                                      7,7,6,6,7,7,6,8,8,8,8,8,8,8,
-                                      8,8,8,8,8,8,8,8,8,8,8,8,8,
-                                      9,9,9,9,9,9,9,9,9,9,9,9,9,
-                                      9,9])
+                class_map = np.array([
+                    0, 1, 2, 2, 1, 1, 2, 2, 1, 1, 2, 2, 1, 1, 2, 2, 1, 1, 2, 2,
+                    1, 1, 2, 2, 1, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3,
+                    3, 3, 3, 3, 3, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4,
+                    5, 6, 7, 7, 6, 6, 7, 7, 6, 6, 7, 7, 6, 6, 7, 7, 6, 6, 7, 7,
+                    6, 6, 7, 7, 6, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8,
+                    8, 8, 8, 8, 8, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9
+                ])
             else:
-                class_map = np.array([0,1,2,2,1,1,2,2,1,1,2,2,1,
-                                      1,2,2,1,1,2,2,1,1,2,2,1,3,
-                                      3,3,3,3,3,3,3,3,3,3,3,3,3,
-                                      3,3,3,3,3,3,4,4,4,4,4,4,4,
-                                      4,4,4,4,4,4,4,4])
+                class_map = np.array([
+                    0, 1, 2, 2, 1, 1, 2, 2, 1, 1, 2, 2, 1, 1, 2, 2, 1, 1, 2, 2,
+                    1, 1, 2, 2, 1, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3,
+                    3, 3, 3, 3, 3, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4
+                ])
         else:
-            raise Exception(f"An invalid point group has been "+
-                            "given or unexpected parsing of the "+
+            raise Exception(f"An invalid point group has been " +
+                            "given or unexpected parsing of the " +
                             "point group string has occured: {pg.str}")
     return class_map
+
 
 def cn_class_map(class_map, n, idx_offset, cls_offset):
     """
     Deprecated
     """
-    for i in range(1,n): # = 2:n
-        if i > (n>>1):
-            class_map[i+idx_offset] = n-i+cls_offset
+    for i in range(1, n):  # = 2:n
+        if i > (n >> 1):
+            class_map[i + idx_offset] = n - i + cls_offset
         else:
-            class_map[i+idx_offset] = i+cls_offset
+            class_map[i + idx_offset] = i + cls_offset
     return class_map
-

@@ -4,8 +4,7 @@ import torch as pytorch
 
 single_prec = True
 
-
-if single_prec : 
+if single_prec:
     numba_Cmplx = nb.complex64
     numpy_Cmplx = np.complex64
     pytor_Cmplx = pytorch.complex64
@@ -13,7 +12,7 @@ if single_prec :
     numpy_float = np.float32
     pytor_float = pytorch.float32
 
-else :
+else:
     numba_Cmplx = nb.complex128
     numpy_Cmplx = np.complex128
     pytor_Cmplx = pytorch.complex128
