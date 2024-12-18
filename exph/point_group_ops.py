@@ -36,6 +36,57 @@ from scipy.spatial import KDTree
 global_tol = 1e-6
 
 
+def get_pg_info(symm_mats):
+    """
+    Given list of symmetries that form a crystallographic point 
+    group, return point-group label, classes, character table, irrep_labels
+    """
+    order = len(symm_mats)
+    pg_label = get_point_grp(symm_mats)
+    pg_symels = pg_to_symels(pg_label)
+    pg_sym_mats = []
+    for i in pg_symels:
+        pg_sym_mats.append(i.rrep)
+    pg_sym_mats = np.array(pg_sym_mats)
+    assert len(pg_sym_mats) == order
+    transfom_mat = transform_matrix(get_paxis(symm_mats),get_paxis(pg_sym_mats))
+    symm_mats_transformed = transfom_mat[None,:,:]@symm_mats@transfom_mat.T[None,:,:]
+    assert np.imag(symm_mats_transformed).max() < 1e-4
+    symm_mats_transformed = symm_mats_transformed.real
+    sym_tree = KDTree(pg_sym_mats.reshape(order,-1))
+    distance, idx = sym_tree.query(symm_mats_transformed.reshape(order,-1), k=1)
+    assert np.min(distance) < 1e-4
+    assert len(np.unique(idx)) == order
+    ctab = pg_to_chartab(pg_label)
+    classes = ctab.classes
+    irreps = ctab.irreps
+    char_tab = ctab.characters
+    pg_class_map = np.array(generate_symel_to_class_map(pg_symels, ctab))
+    class_map    =  pg_class_map[idx]
+    class_dict = dict()
+    for i,n in enumerate(class_map):
+        class_dict.setdefault(n,[]).append(i)
+    class_dict = {n:rep for n,rep in class_dict.items() if len(rep)>0}
+    return pg_label, classes, class_dict, char_tab, irreps
+
+def decompose_rep2irrep(red_rep, char_table, pg_order, class_order, irrep_labels):
+    irrep_coeff = np.einsum('j,j,rj->r',class_order,red_rep,char_table,optimize=True)/pg_order
+    assert np.abs(irrep_coeff.imag).max() < 1e-3, print(np.abs(irrep_coeff.imag).max())
+    irrep_coeff = irrep_coeff.real
+    assert np.abs(irrep_coeff-np.rint(irrep_coeff)).max() < 1e-3,\
+                np.abs(irrep_coeff-np.rint(irrep_coeff)).max() 
+    irrep_coeff = np.rint(irrep_coeff).astype(int)
+    rep_string = ''
+    for i in range(len(irrep_labels)):
+        if irrep_coeff[i] == 0: continue
+        num_str = ''
+        if irrep_coeff[i] > 1 : num_str += str(irrep_coeff[i])
+        rep_string = rep_string + num_str + irrep_labels[i] + ' + '
+    return rep_string.strip()[:-1]
+
+
+## Helpers
+################################################################################
 def normalize(a):
     """
     Normalize vector a to unit length
@@ -142,106 +193,6 @@ def transform_matrix(paxis_old, paxis_new):
     # rotation or reflection?
     return rotation_matrix(axis, theta)
 
-
-def isequivalent(A,B):
-    """
-    Returns True if molecule A and B are equivalent with respect to permutation of like atoms.
-
-    :param A: Molecule A
-    :param B: Molecule B
-    :type A: molsym.Molecule
-    :type B: molsym.Molecule
-    :return: True if equivalent, False if not
-    :rtype: bool
-    """
-    if A.tol >= B.tol:
-        eq_tol = A.tol
-    else:
-        eq_tol = B.tol
-    matched_already = []
-    for i in range(A.natoms):
-        for j in range(B.natoms):
-            # Reduce search list so large molecules are a bit faster
-            if j not in matched_already:
-                # Check that masses are equal
-                if A.masses[i] == B.masses[j]:
-                    # Check if atoms are about at the same Cartesian point
-                    zs = abs(A.coords[i,:]-B.coords[j,:])
-                    if np.allclose(zs, [0,0,0], atol=eq_tol):
-                        matched_already.append(j)
-                        break
-    # Did we find a match for each atom? If so we win
-    if len(matched_already) == A.natoms:
-        return True
-    return False
-
-def calcmoit(atoms):
-    """
-    Calculates the moment of inertia tensor for a list of atoms.
-    
-    :param atoms: Set of atoms
-    :type atoms: molsym.Molecule
-    :return: Cartesian moment of inertia tensor
-    :rtype: NumPy array of shape (3,3)
-    """
-    I = np.zeros((3,3))
-    atoms.translate(atoms.find_com())
-    for i in range(3):
-        for j in range(3):
-            if i == j:
-                for k in range(atoms.natoms):
-                    I[i,i] += atoms.masses[k]*(atoms.coords[k,(i+1)%3]**2+atoms.coords[k,(i+2)%3]**2)
-            else:
-                for k in range(atoms.natoms):
-                    I[i,j] -= atoms.masses[k]*atoms.coords[k,i]*atoms.coords[k,j]
-    return I
-
-def normalize(a):
-    """
-    Normalize vector a to unit length, return None if the input vector is of zero length.
-
-    :param a: Vector of arbitrary magnitude
-    :type a: NumPy array of shape (n,)
-    :return: Normalized vector or None if the magnitude of a is less than the global tolerance
-    :rtype: NumPy array of shape (n,) or None
-    """
-    n = np.linalg.norm(a)
-    if n <= global_tol:
-        return None
-    return a / np.linalg.norm(a)
-
-def issame_axis(a, b, tol=global_tol):
-    """
-    Return True if vectors a and b are colinear within the global tolerance.
-
-    :param a: Vector a
-    :param b: Vector b
-    :param tol: Tolerance for error
-    :type a: NumPy array of shape (n,)
-    :type b: NumPy array of shape (n,)
-    :type tol: float
-    :return: True if vectors are colinear, False if not colinear or if either vector has zero length
-    :rtype: bool
-    """
-    A = normalize(a)
-    B = normalize(b)
-    if A is None or B is None:
-        return False
-    d = abs(np.dot(A,B))
-    return np.isclose(d, 1.0, atol=tol)
-
-def isfactor(n,a):
-    """
-    Return True if a divides n.
-    
-    :type n: int
-    :type a: int
-    :rtype: bool
-    """
-    if n % a == 0:
-        return True
-    else:
-        return False
 
 def reduce(n, i):
     """
@@ -1869,201 +1820,4 @@ def cn_class_map(class_map, n, idx_offset, cls_offset):
         else:
             class_map[i+idx_offset] = i+cls_offset
     return class_map
-
-def rotate_mol_to_symels(mol, paxis, saxis):
-    """
-    Rotate molecule with symmetry defined by paxis and saxis to symmetry elements.
-    paxis -> z axis and saxis -> x axis.
-
-    :type mol: molsym.Molecule
-    :type paxis: NumPy array of shape (3,)
-    :type saxis: NumPy array of shape (3,)
-    :return: New rotated molecule, rotation matrix, inverse rotation matrix
-    :rtype: (molsym.Molecule, NumPy array of shape (3,3), NumPy array of shape (3,3))
-    """
-    if np.isclose(np.linalg.norm(paxis), 0.0, atol=global_tol): 
-        # Symmetry is C1 and paxis not defined, just return mol
-        rmat = rmat_inv = np.eye(3)
-        return mol, rmat, rmat_inv
-    z = paxis
-    if np.isclose(np.linalg.norm(saxis), 0.0, atol=global_tol): 
-        # Find a trial vector that works
-        x = None
-        for trial_vec in np.eye(3):
-            x = np.cross(trial_vec, z)
-            if not np.isclose(np.linalg.norm(x), 0, atol=global_tol):
-                x = normalize(x)
-                break
-        y = normalize(np.cross(z, x))
-    else:
-        x = saxis
-        y = np.cross(z,x)
-    rmat = np.column_stack((x,y,z)) # This matrix rotates z to paxis, etc., ...
-    rmat_inv = rmat.T # ... so invert it to take paxis to z, etc.
-    new_mol = mol.transform(rmat_inv)
-    return new_mol, rmat, rmat_inv
-
-def get_atom_mapping(mol, symels):
-    """
-    Map of each atom under each symmetry element.
-
-    :type mol: molsym.Molecule
-    :type symels: List[molsym.Symel]
-    :return: Atom by Symel array
-    :rtype: NumPy array of shape (natom, nsymel)
-    """
-    # symels after transformation
-    amap = np.zeros((mol.natoms, len(symels)), dtype=int)
-    for atom in range(mol.natoms):
-        for (s, symel) in enumerate(symels):
-            w = where_you_go(mol, atom, symel)
-            if w is not None:
-                amap[atom,s] = w
-            else:
-                raise Exception(f"Atom {atom} not mapped to another atom under symel {symel}")
-    return amap
-
-def get_linear_atom_mapping(mol, pg):
-    """
-    Atom map for linear point groups. Still under development.
-    """
-    amap = np.array([atom for atom in range(mol.natoms)], dtype=int).reshape((mol.natoms,1))
-    if pg.family == "D":
-        ungerade_map = np.zeros((mol.natoms), dtype=int)
-        for atom in range(mol.natoms):
-            w = where_you_go(mol, atom, Symel("i", None, -1*np.eye(3), None, None, None))
-            if w is not None:
-                ungerade_map[atom] = w
-            else:
-                raise Exception(f"Atom {atom} not mapped to another atom under symel i")
-        return np.column_stack((amap, ungerade_map))
-    return amap
-
-def where_you_go(mol, atom, symel):
-    """
-    Find the resulting atom after applying a symmetry operation
-
-    :type mol: molsym.Molecule
-    :type atom: int
-    :type symel: molsym.Symel
-    :rtype: int
-    """
-    ratom = np.dot(symel.rrep, mol.coords[atom,:].T)
-    for i in range(mol.natoms):
-        if np.isclose(mol.coords[i,:], ratom, atol=mol.tol).all():
-            return i
-    return None
-
-def get_class_name(symels_in_class):
-    """
-    Get the name of the class that a set of Symels belong to.
-
-    :type symels_in_class: List[molsym.Symel]
-    :rtype: str
-    """
-    if "^" in symels_in_class[0].symbol:
-        rot_order = []
-        for symel in symels_in_class:
-            s = re.search(r"\^(\d+)", symel.symbol)
-            if s:
-                rot_order.append(int(s.groups()[0]))
-            else:
-                rot_order.append(1)
-        pickem = symels_in_class[np.argmin(rot_order)].symbol
-    else:
-        pickem = symels_in_class[0].symbol
-    return re.sub(r"\(\w+\)", "", pickem)
-
-def irrep_sort_idx(irrep_str):
-    """
-    Provide an integer to each irrep string such that when sorted from smallest to largest
-    the result is that the irrep strings are sorted into the order present in most published character tables.
-
-    :type irrep_str: str
-    :rtype: int
-    """
-    rsult = 0
-    # g and ' always go first
-    gchk = r"g"
-    ppchk = r"''"
-    gm = gchk in irrep_str
-    pm = ppchk in irrep_str
-    if gm:
-        rsult += 0
-    elif pm:
-        rsult += 10000
-    else:
-        rsult += 1000
-    irrep_letter = irrep_str[1] # the letter
-    irrep_num_rgx = r"(\d+)"
-    mn = re.match(irrep_num_rgx, irrep_str)
-    if mn is not None:
-        rsult += int(mn.groups()[0])
-    if irrep_letter == 'A':
-        rsult += 0
-    elif irrep_letter == 'B':
-        rsult += 100
-    elif irrep_letter == 'E':
-        rsult += 200
-    elif irrep_letter == 'T':
-        rsult += 300
-    elif irrep_letter == 'G':
-        rsult += 400
-    elif irrep_letter == 'H':
-        rsult += 500
-    else:
-        raise Exception(f"Invalid irrep order: {irrep_letter}")
-    return rsult
-
-
-def get_pg_info(symm_mats):
-    """
-    Given list of symmetries that form a crystallographic point 
-    group, return point-group label, classes, character table, irrep_labels
-    """
-    order = len(symm_mats)
-    pg_label = get_point_grp(symm_mats)
-    pg_symels = pg_to_symels(pg_label)
-    pg_sym_mats = []
-    for i in pg_symels:
-        pg_sym_mats.append(i.rrep)
-    pg_sym_mats = np.array(pg_sym_mats)
-    assert len(pg_sym_mats) == order
-    transfom_mat = transform_matrix(get_paxis(symm_mats),get_paxis(pg_sym_mats))
-    symm_mats_transformed = transfom_mat[None,:,:]@symm_mats@transfom_mat.T[None,:,:]
-    assert np.imag(symm_mats_transformed).max() < 1e-4
-    symm_mats_transformed = symm_mats_transformed.real
-    sym_tree = KDTree(pg_sym_mats.reshape(order,-1))
-    distance, idx = sym_tree.query(symm_mats_transformed.reshape(order,-1), k=1)
-    assert np.min(distance) < 1e-4
-    assert len(np.unique(idx)) == order
-    ctab = pg_to_chartab(pg_label)
-    classes = ctab.classes
-    irreps = ctab.irreps
-    char_tab = ctab.characters
-    pg_class_map = np.array(generate_symel_to_class_map(pg_symels, ctab))
-    class_map    =  pg_class_map[idx]
-    class_dict = dict()
-    for i,n in enumerate(class_map):
-        class_dict.setdefault(n,[]).append(i)
-    class_dict = {n:rep for n,rep in class_dict.items() if len(rep)>0}
-    return pg_label, classes, class_dict, char_tab, irreps
-
-def decompose_rep2irrep(red_rep, char_table, pg_order, class_order, irrep_labels):
-    irrep_coeff = np.einsum('j,j,rj->r',class_order,red_rep,char_table,optimize=True)/pg_order
-    assert np.abs(irrep_coeff.imag).max() < 1e-3, print(np.abs(irrep_coeff.imag).max())
-    irrep_coeff = irrep_coeff.real
-    assert np.abs(irrep_coeff-np.rint(irrep_coeff)).max() < 1e-3,\
-                np.abs(irrep_coeff-np.rint(irrep_coeff)).max() 
-    irrep_coeff = np.rint(irrep_coeff).astype(int)
-    rep_string = ''
-    for i in range(len(irrep_labels)):
-        if irrep_coeff[i] == 0: continue
-        num_str = ''
-        if irrep_coeff[i] > 1 : num_str += str(irrep_coeff[i])
-        rep_string = rep_string + num_str + irrep_labels[i] + ' + '
-    return rep_string.strip()[:-1]
-
-
-
 
