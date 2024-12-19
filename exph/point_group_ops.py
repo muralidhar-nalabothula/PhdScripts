@@ -49,8 +49,7 @@ def get_pg_info(symm_mats):
         pg_sym_mats.append(i.rrep)
     pg_sym_mats = np.array(pg_sym_mats)
     assert len(pg_sym_mats) == order
-    transfom_mat = transform_matrix(get_paxis(symm_mats),
-                                    get_paxis(pg_sym_mats))
+    transfom_mat = transform_matrix(symm_mats, pg_sym_mats)
     symm_mats_transformed = transfom_mat[
         None, :, :] @ symm_mats @ transfom_mat.T[None, :, :]
     assert np.imag(symm_mats_transformed).max() < 1e-4
@@ -58,7 +57,7 @@ def get_pg_info(symm_mats):
     sym_tree = KDTree(pg_sym_mats.reshape(order, -1))
     distance, idx = sym_tree.query(symm_mats_transformed.reshape(order, -1),
                                    k=1)
-    assert np.min(distance) < 1e-4
+    assert np.max(distance) < 1e-4
     assert len(np.unique(idx)) == order
     ctab = pg_to_chartab(pg_label)
     classes = ctab.classes
@@ -189,23 +188,53 @@ def Sn(axis, n):
     return np.dot(reflection_matrix(axis), Cn(axis, n))
 
 
-def transform_matrix(paxis_old, paxis_new):
+def transform_matrix(sym_mats_old, sym_mats_new):
+    #paxis_old, paxis_new):
     """
-    Given a principal axis paxis_old, finds
-    a orthogonal matrix R, such that R@paxis_old = paxis_new
+    Given two point groups, find a tranformation matrix that
+    can map the two groups
     Note: R is not uniquely defined !
     """
     # find R such that R@paxis_old = paxis_new
-    p1 = normalize(paxis_old)
-    p2 = normalize(paxis_new)
+    assert len(sym_mats_old) == len(sym_mats_new)
+    p1 = get_paxis(sym_mats_old)
+    p2 = get_paxis(sym_mats_new)
+    p1 = normalize(p1)
+    p2 = normalize(p2)
     dot = np.dot(p1, p2)
     theta = np.arccos(dot)
     if abs(abs(dot) - 1) < 1e-4:
         return np.sign(dot) * np.eye(3)
-    axis = np.cross(paxis_old, paxis_new)
+    axis = np.cross(p1, p2)
     axis = normalize(axis)
-    # rotation or reflection?
-    return rotation_matrix(axis, theta)
+    R1 = rotation_matrix(axis, theta)
+    if len(sym_mats_old) == 1:
+        return R1
+    ## check it the group has vertical place
+    dets1, nfold1, axes1 = find_symm_axis(sym_mats_old)
+    dets2, nfold2, axes2 = find_symm_axis(sym_mats_new)
+    if np.abs(nfold1).max() < 2:
+        return R1
+    bool_arr1 = np.logical_and(dets1 < 0, np.abs(nfold1) == 2)
+    bool_arr2 = np.logical_and(dets2 < 0, np.abs(nfold2) == 2)
+    paxis_dot1 = np.abs(axes1 @ p1)
+    paxis_dot2 = np.abs(axes2 @ p2)
+    bool_arr1 = np.logical_and(bool_arr1, paxis_dot1 < 1e-4)
+    bool_arr2 = np.logical_and(bool_arr2, paxis_dot2 < 1e-4)
+    sec_axis1 = axes1[bool_arr1, :]
+    sec_axis2 = axes2[bool_arr2, :]
+    assert len(sec_axis1) == len(sec_axis2)
+    if len(sec_axis1) == 0:
+        return R1
+    v1 = normalize(sec_axis1[0])
+    v2 = normalize(sec_axis2[0])
+    angle_in = np.arccos(np.dot(R1 @ v1, v2))
+    axis_2 = np.cross(R1 @ v1, v2)
+    axis_2 = normalize(axis_2)
+    assert np.isclose(abs(np.dot(axis_2, p2)), 1, rtol=1e-3)
+    R2 = rotation_matrix(axis_2, angle_in)
+    R = R2 @ R1
+    return R
 
 
 def reduce(n, i):
