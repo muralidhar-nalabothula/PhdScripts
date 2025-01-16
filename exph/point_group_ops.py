@@ -197,10 +197,11 @@ def transform_matrix(sym_mats_old, sym_mats_new):
     """
     # find R such that R@paxis_old = paxis_new
     assert len(sym_mats_old) == len(sym_mats_new)
-    p1 = get_paxis(sym_mats_old)
-    p2 = get_paxis(sym_mats_new)
-    p1 = normalize(p1)
-    p2 = normalize(p2)
+    px_1 = get_paxis(sym_mats_old)
+    px_2 = get_paxis(sym_mats_new)
+    assert len(px_1) == len(px_2)
+    p1 = normalize(px_1[0])
+    p2 = normalize(px_2[0])
     dot = np.dot(p1, p2)
     theta = np.arccos(dot)
     if abs(abs(dot) - 1) < 1e-4:
@@ -210,27 +211,38 @@ def transform_matrix(sym_mats_old, sym_mats_new):
     R1 = rotation_matrix(axis, theta)
     if len(sym_mats_old) == 1:
         return R1
-    ## check it the group has vertical place
-    dets1, nfold1, axes1 = find_symm_axis(sym_mats_old)
-    dets2, nfold2, axes2 = find_symm_axis(sym_mats_new)
-    if np.abs(nfold1).max() < 2:
+    ## check if it has more than 1 paxis
+    if len(p1) > 1:
+        v1 = normalize(px_1[1])
+        v2 = normalize(px_2[1])
+    else:
+        ## else check it the group has vertical place
+        dets1, nfold1, axes1 = find_symm_axis(sym_mats_old)
+        dets2, nfold2, axes2 = find_symm_axis(sym_mats_new)
+        if np.abs(nfold1).max() < 2:
+            return R1
+        bool_arr1 = np.logical_and(dets1 < 0, np.abs(nfold1) == 2)
+        bool_arr2 = np.logical_and(dets2 < 0, np.abs(nfold2) == 2)
+        paxis_dot1 = np.abs(axes1 @ p1)
+        paxis_dot2 = np.abs(axes2 @ p2)
+        bool_arr1 = np.logical_and(bool_arr1, paxis_dot1 < 1e-4)
+        bool_arr2 = np.logical_and(bool_arr2, paxis_dot2 < 1e-4)
+        sec_axis1 = axes1[bool_arr1, :]
+        sec_axis2 = axes2[bool_arr2, :]
+        assert len(sec_axis1) == len(sec_axis2)
+        if len(sec_axis1) == 0:
+            return R1
+        v1 = normalize(sec_axis1[0])
+        v2 = normalize(sec_axis2[0])
+    #
+    R1v1_dot_v2 = np.dot(R1 @ v1, v2)
+    if np.isclose(abs(R1v1_dot_v2), 1, rtol=1e-3):
         return R1
-    bool_arr1 = np.logical_and(dets1 < 0, np.abs(nfold1) == 2)
-    bool_arr2 = np.logical_and(dets2 < 0, np.abs(nfold2) == 2)
-    paxis_dot1 = np.abs(axes1 @ p1)
-    paxis_dot2 = np.abs(axes2 @ p2)
-    bool_arr1 = np.logical_and(bool_arr1, paxis_dot1 < 1e-4)
-    bool_arr2 = np.logical_and(bool_arr2, paxis_dot2 < 1e-4)
-    sec_axis1 = axes1[bool_arr1, :]
-    sec_axis2 = axes2[bool_arr2, :]
-    assert len(sec_axis1) == len(sec_axis2)
-    if len(sec_axis1) == 0:
-        return R1
-    v1 = normalize(sec_axis1[0])
-    v2 = normalize(sec_axis2[0])
-    angle_in = np.arccos(np.dot(R1 @ v1, v2))
+    #
+    angle_in = np.arccos(R1v1_dot_v2)
     axis_2 = np.cross(R1 @ v1, v2)
     axis_2 = normalize(axis_2)
+    print(np.dot(axis_2, p2))
     assert np.isclose(abs(np.dot(axis_2, p2)), 1, rtol=1e-3)
     R2 = rotation_matrix(axis_2, angle_in)
     R = R2 @ R1
@@ -1868,9 +1880,11 @@ def get_paxis(symm_mats):
     order = len(symm_mats)
     if order == 1:
         return np.array([])
-    nidx = np.argmax(nfold[np.logical_and(dets > 0, nfold > 0)])
     if order > 2:
-        paxis = axes[np.logical_and(dets > 0, nfold > 0), :][nidx]
+        nfold_pos = nfold[np.logical_and(dets > 0, nfold > 0)]
+        nidx = np.argwhere(nfold_pos == np.amax(nfold_pos)).reshape(-1)
+        paxis = axes[np.logical_and(dets > 0, nfold > 0), :][nidx, :]
+        paxis = paxis / np.linalg.norm(paxis, axis=-1)[:, None]
         return paxis
     else:
         paxis = axes[nfold == 2, :]

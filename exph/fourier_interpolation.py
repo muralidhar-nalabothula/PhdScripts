@@ -27,8 +27,8 @@ def fourier_interpolate(kpts, qpts_co, data_co):
     assert np.abs(kgrid % qgrid_co).max() < 1e-7
     #
     # return the same if grids are same
-    if np.allclose(kgrid, qpts_co):
-        return data_co
+    # if np.allclose(kgrid, qpts_co):
+    #     return data_co
     #
     kgrid_fft = generate_kgrid(kgrid)
     qgrid_fft_co = generate_kgrid(qgrid_co)
@@ -91,16 +91,41 @@ def fft_map_idxs(g_cor, g_fine=0):
 
 ## test
 if __name__ == '__main__':
-    kgrid = np.array([6, 6, 6])
-    qgrid_co = np.array([2, 2, 2])
-    dco = np.random.rand(np.prod(qgrid_co), np.prod(kgrid), 4, 3, 2, 5)
-    dco = dco + 1j * np.random.rand(np.prod(qgrid_co), np.prod(kgrid), 4, 3, 2,
-                                    5)
-    dco = dco.astype(np.complex64)
-    kpts = generate_kgrid(kgrid)
+    from netCDF4 import Dataset
+
+    elph_db = Dataset(
+        '/Users/murali/phd/one_phonon_raman' +
+        '/si/elph_test/interpolation/elph/ndb.elph', 'r')
+
+    kpts = elph_db['kpoints'][...].data
+    qpts = elph_db['qpoints'][...].data
+    elph = elph_db['elph_mat'][...].data
+    elph = elph[..., 0] + 1j * elph[..., 1]
+    pol_v = elph_db['POLARIZATION_VECTORS'][...].data
+    pol_v = pol_v[..., 0] + 1j * pol_v[..., 1]
+    nq, nmodes = pol_v.shape[:2]
+    pol_v = np.linalg.inv(pol_v.reshape(-1, nmodes, nmodes))
+    elph = np.einsum('qkv...,qxv->qkx...', elph, pol_v, optimize=True)
+
+    qgrid_co = np.array([4, 4, 4])
+    #qgrid_co = np.array([8, 8, 8])
     qpts_co = generate_kgrid(qgrid_co)
-    kpts = np.random.permutation(kpts - np.rint(kpts))
     qpts_co = np.random.permutation(qpts_co - np.rint(qpts_co))
+    qtree = build_ktree(qpts)
+    idx_q = find_kpt(qtree, qpts_co)
+    kidxs = find_kpt(qtree, kpts)
+    elph_test_in = elph[idx_q, ...]
+
     #print(kpts.shape)
-    exp1 = fourier_interpolate(kpts, qpts_co, dco)
-    print(exp1.shape)
+    ## close files
+    elph_db.close()
+    elph_test_out = np.zeros(elph.shape, dtype=np.complex64)
+    elph_test_out[kidxs, ...] = fourier_interpolate(kpts, qpts_co, elph_test_in)
+
+    #print(np.abs(elph_test_out-elph).max())
+    print(elph_test_out[1, 145, 4, 0, 2:4, 6:7])
+    print(elph[1, 145, 4, 0, 2:4, 6:7])
+    # print(np.sum(elph_test_out))
+    # print(np.sum(elph))
+    # print(elph_test_out.shape)
+    #print(exp1.shape)
