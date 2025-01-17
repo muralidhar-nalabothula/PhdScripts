@@ -212,7 +212,7 @@ def transform_matrix(sym_mats_old, sym_mats_new):
     if len(sym_mats_old) == 1:
         return R1
     ## check if it has more than 1 paxis
-    if len(p1) > 1:
+    if len(px_1) > 1:
         v1 = normalize(px_1[1])
         v2 = normalize(px_2[1])
     else:
