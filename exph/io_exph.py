@@ -80,7 +80,6 @@ def get_dipoles(bands_range, nval_bnds, dip_file='ndb.dipoles', var='DIP_iR'):
     ## we need photon absoprtion but yambo computes for emission, so conjugate
     dipoles = dipoles[..., 0] - 1j * dipoles[..., 1]
     ndb_dip.close()
-    if var=='DIP_iR': dipoles = -1j*dipoles. ## we want r dipoles not ir 
     return dipoles.transpose(0, 2, 1, 3).astype(numpy_Cmplx)  # (k,c,v,pol)
 
 

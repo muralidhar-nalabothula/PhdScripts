@@ -72,6 +72,7 @@ ele_dips = get_dipoles(bs_bands,
                        dip_file=dipole_file,
                        var='DIP_iR')
 
+ele_dips = -1j * ele_dips  ## we need r dipoles and not iR
 ### build a kdtree for kpoints
 print('Building kD-tree for kpoints')
 kpt_tree = build_ktree(kpts)
