@@ -205,13 +205,12 @@ def transform_matrix(sym_mats_old, sym_mats_new):
     dot = np.dot(p1, p2)
     theta = np.arccos(dot)
     if abs(abs(dot) - 1) < 1e-4:
-        R1 = np.sign(dot) * np.eye(3)
-    else:
-        axis = np.cross(p1, p2)
-        axis = normalize(axis)
-        R1 = rotation_matrix(axis, theta)
-        if len(sym_mats_old) == 1:
-            return R1
+        return np.sign(dot) * np.eye(3)
+    axis = np.cross(p1, p2)
+    axis = normalize(axis)
+    R1 = rotation_matrix(axis, theta)
+    if len(sym_mats_old) == 1:
+        return R1
     ## check if it has more than 1 paxis
     if len(px_1) > 1:
         v1 = normalize(px_1[1])
