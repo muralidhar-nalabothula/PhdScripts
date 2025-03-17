@@ -104,13 +104,13 @@ for isym in range(int(sym_red.shape[0] / (time_rev + 1))):
     if np.linalg.norm(Sq_minus_q) > 10**-5:
         continue
     little_group.append(isym + 1)
-    tau_dot_k = np.exp(-1j * 2 * np.pi *
+    tau_dot_k = np.exp(1j * 2 * np.pi *
                        np.dot(kpts_ibz[iQ - 1], frac_trans[isym]))
     #assert(np.linalg.norm(Sq_minus_q)<10**-5)
     wfc_tmp = rotate_exc_wfc(BS_wfcs, sym_red[isym], kpts, \
     kpt_tree, kpts_ibz[iQ-1], Dmats[isym], False)
     #print(np.linalg.norm(wfc_tmp.reshape(wfc_tmp.shape[0],-1),axis=-1))
-    rep = np.einsum('n...,m...->nm', np.conj(wfc_tmp), BS_wfcs,
+    rep = np.einsum('n...,m...->nm', wfc_tmp, BS_wfcs.conj(),
                     optimize=True) * tau_dot_k
     #print('Symmetry number : ',isym + 1)
     ## print characters
