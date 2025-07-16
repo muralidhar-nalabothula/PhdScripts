@@ -130,7 +130,7 @@ if Raman:
     print('Computing Raman tensor ...')
     raman_ten = []
     for i in tqdm(range(ome_range.shape[0]), desc="Raman tensor"):
-        raman_ten_tmp = compute_Raman(ome_range[i], ph_freq[0][modes], BS_eigs, \
+        raman_ten_tmp = compute_Raman_oneph_exc(ome_range[i], ph_freq[0][modes], BS_eigs, \
             ex_dip, ex_ph, len(kpts), CellVol, broading=broading, npol=npol, ph_fre_th=8)
         raman_ten.append(raman_ten_tmp)
     ## save intensties

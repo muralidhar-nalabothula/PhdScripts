@@ -7,6 +7,7 @@ from luminescence import *
 from time import time
 from exe_dips import exe_dipoles
 from exph_precision import *
+from kpts import find_kpatch
 
 # # ### Basic input
 # SAVE_dir = '../gw_bse/SAVE'
@@ -22,18 +23,22 @@ from exph_precision import *
 # npol = 3
 
 # ## test case
-calc_folder = '../with'
-SAVE_dir = calc_folder + '/GW_BSE/GW_BSE/SAVE'
-BSE_dir = calc_folder + '/GW_BSE/GW_BSE/GW_BSE'
-elph_file = calc_folder + '/GW_BSE/GW_BSE/ndb.elph'
-Dmat_file = calc_folder + '/GW_BSE/GW_BSE/ndb.Dmats'
-nstates = 100
-lumin = True  ## compute luminescence if set to true
-Exph = True
+calc_folder = '../../'
+SAVE_dir = calc_folder + 'gw_bse/SAVE'
+BSE_dir = calc_folder + 'gw_bse/GW_BSE'
+elph_file = calc_folder + 'elph/ndb.elph'
+Dmat_file = calc_folder + 'elph/ndb.Dmats'
+nstates = 10
+lumin = True  #False  ## compute luminescence if set to true
+Exph = False  #True
 Temp = 20  ## temperature used in luminescence (in Kelvin)
-ome_range = [5, 6, 1000]  ## (min max, numpoints)
-broading = 0.005  # in eV
-npol = 2
+ome_range = [1.35, 1.5, 40000]  ## (min max, numpoints)
+broading = 0.004  # in eV
+kcentre = [[1.0 / 6, 1.0 / 6, 0], 2 * np.pi / 7 * 0.1
+          ]  ## only take kpoints around this point. [[kx,ky,kz],k_dist]
+#             [kx,ky,kz] kpoint in crystal coorinates and k_dist in cart units (1/bohr)
+#             if empty, consider all points.
+npol = 3
 # ### end of input
 
 ## read the lattice data
@@ -154,8 +159,29 @@ np.save('Ex-dipole', ex_dip)
 elph_file.close()
 ## compute Lumenscence
 if lumin:
+    if len(kcentre) != 0:
+        kcen = np.array(kcentre[0])
+        kdist = kcentre[1]
+        rot_kcen = np.einsum('nij,j->ni', sym_red, kcen)
+        uniqe_kpts_centre = [kcen]
+        for iikk in rot_kcen:
+            for jjkk in uniqe_kpts_centre:
+                ijkk = iikk - jjkk
+                ijkk = np.linalg.norm(ijkk - np.rint(ijkk))
+                if ijkk < 1e-5:
+                    uniqe_kpts_centre.append(iikk)
+                    break
+        qinclude_idx = []
+        for iqkk in uniqe_kpts_centre:
+            qinclude_idx = qinclude_idx + list(
+                find_kpatch(qpts, iqkk, kdist, lat_vecs))
+        qinclude_idx = np.unique(qinclude_idx)
+        print('Number of qpoints considered: ', len(qinclude_idx))
+    else:
+        qinclude_idx = np.arange(len(qpts), dtype=int)
+    #
     ome_range = np.linspace(ome_range[0], ome_range[1], num=ome_range[2])
-    exe_ene = BS_eigs[kmap[qidx_in_kpts, 0], :]
+    exe_ene = BS_eigs[kmap[qidx_in_kpts[qinclude_idx], 0], :]
     lumen_inten = []
 
     Exe_min = np.min(exe_ene)
@@ -166,8 +192,8 @@ if lumin:
 
     print('Computing luminescence intensities ...')
     for i in tqdm(range(ome_range.shape[0]), desc="Luminescence "):
-        inte_tmp = compute_luminescence(ome_range[i], ph_freq, exe_ene, \
-            Exe_min, ex_dip, ex_ph, temp=Temp, broading=broading,npol=npol)
+        inte_tmp = compute_luminescence(ome_range[i], ph_freq[qinclude_idx], exe_ene, \
+            Exe_min, ex_dip, ex_ph[qinclude_idx], temp=Temp, broading=broading,npol=npol)
         lumen_inten.append(inte_tmp)
     ## save intensties
     np.savetxt('luminescence_intensities.dat', np.c_[ome_range,
