@@ -86,8 +86,8 @@ if one_ph:
     print("Computing one-phonon stokes Raman")
     omega_one_ph_freq = np.linspace(omega_one_ph_range[0],omega_one_ph_range[1],num=omega_one_ph_range[2])
     ram_ten_one_ph = []
-    for iw in omega_one_ph_freq:
-        tmp_ten = compute_Raman_oneph_ip(iw,
+    for iw in tqdm(range(len(omega_one_ph_freq)), desc="1ph IP Raman tensor"):
+        tmp_ten = compute_Raman_oneph_ip(omega_one_ph_freq[iw],
                                ph_freq[0],
                                Qp_ene,
                                ele_dips,
@@ -109,8 +109,8 @@ if two_ph:
     print("Computing two-phonon Raman")
     freq_out = True
     out_2ph_freq = []
-    for iw in omega_two_ph_freq:
-        tmp_ten = compute_Raman_twoph_iq(iw,
+    for iw in tqdm(range(len(omega_two_ph_freq)), desc="2ph IP Raman tensor"):
+        tmp_ten = compute_Raman_twoph_iq(omega_two_ph_freq[iw],
                                      ph_freq,
                                      Qp_ene,
                                      ele_dips,
