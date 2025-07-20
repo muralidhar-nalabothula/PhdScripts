@@ -49,7 +49,8 @@ def get_SAVE_Data(save_folder='SAVE'):
     nspinor = int(np.rint(dims[11]))
     nspin = int(np.rint(dims[12]))
     nelec = int(np.rint(dims[14]))
-    nval = nelec // nspinor // nspin
+    if nspinor == 2: nval = nelec
+    else :nval = nelec//2
     lat_vecs = ns_db1['LATTICE_VECTORS'][...].data.astype(numpy_float)
     ns_db1.close()
     return lat_vecs, nk_ibz.shape[0], symm_mats, int(np.rint(

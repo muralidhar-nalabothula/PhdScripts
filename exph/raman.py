@@ -159,7 +159,7 @@ def compute_Raman_twoph_iq(ome_light,
                            ktree=None):
     """
     Computes the resonant Raman tensor for four distinct two-phonon processes at the
-    independent particle level, following the user's provided style.
+    independent particle level.
 
     The function calculates contributions from 16 scattering pathways in total.
 
