@@ -24,7 +24,7 @@ degen_thres = 0.001  # eV ## degenercy threshould
 ## convert degen_thres to decimal digits
 ## read the lattice data
 print('Reading lattice data')
-lat_vecs, nibz, symm_mats, time_rev = get_SAVE_Data(save_folder=SAVE_dir)
+lat_vecs, nibz, symm_mats, time_rev, _ = get_SAVE_Data(save_folder=SAVE_dir)
 frac_trans = np.zeros(
     (symm_mats.shape[0], 3))  ## yambo does not support frac trans
 blat_vecs = np.linalg.inv(lat_vecs.T)

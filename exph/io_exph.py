@@ -46,10 +46,14 @@ def get_SAVE_Data(save_folder='SAVE'):
                                                        1).astype(numpy_float)
     nk_ibz = ns_db1['K-POINTS'][...].data.T.astype(numpy_float)
     dims = ns_db1['DIMENSIONS'][...].data
+    nspinor = int(np.rint(dims[11]))
+    nspin = int(np.rint(dims[12]))
+    nelec = int(np.rint(dims[14]))
+    nval = nelec // nspinor // nspin
     lat_vecs = ns_db1['LATTICE_VECTORS'][...].data.astype(numpy_float)
     ns_db1.close()
     return lat_vecs, nk_ibz.shape[0], symm_mats, int(np.rint(
-        dims[9]))  ## dim[9] is time_rev is on/off
+        dims[9])), nval  ## dim[9] is time_rev is on/off
 
 
 def get_dipoles(bands_range, nval_bnds, dip_file='ndb.dipoles', var='DIP_iR'):

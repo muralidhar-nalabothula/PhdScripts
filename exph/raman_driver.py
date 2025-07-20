@@ -63,7 +63,7 @@ modes = [
 ## read the lattice data
 print('*' * 30, ' Program started ', '*' * 30)
 print('Reading Lattice data')
-lat_vecs, nibz, symm_mats, ele_time_rev = get_SAVE_Data(save_folder=SAVE_dir)
+lat_vecs, nibz, symm_mats, ele_time_rev, _ = get_SAVE_Data(save_folder=SAVE_dir)
 blat_vecs = np.linalg.inv(lat_vecs.T)
 
 ## read exciton eigen vectors
