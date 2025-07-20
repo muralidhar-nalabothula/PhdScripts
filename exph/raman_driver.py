@@ -119,7 +119,7 @@ np.save('Ex-dipole', ex_dip)
 # ## Test  <0|S'><S'|S>* <0|S>^*
 # print (np.sum(np.abs(np.einsum('ia,vab,jb->vij',ex_dip,ex_ph.conj(),ex_dip.conj()))**2,axis=(1,2)))
 
-CellVol = np.linalg.det(lat_vecs)
+CellVol = np.fabs(np.linalg.det(lat_vecs))
 ## close el-ph file
 elph_file.close()
 ## compute Raman

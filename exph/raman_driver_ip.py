@@ -65,7 +65,7 @@ for iq in range(nq_read):
     elph_mat[iq] = get_elph_data_iq(iq, elph_bnds_range, stard_conv, \
                               ph_freq[iq], kpt_tree, kpts, qpts, elph_file)
 
-CellVol = np.linalg.det(lat_vecs)
+CellVol = np.fabs(np.linalg.det(lat_vecs))
 ## close el-ph file
 elph_file.close()
 ## compute Raman
@@ -99,8 +99,8 @@ if one_ph:
         ram_ten_one_ph.append(tmp_ten)
     #
     ram_ten_one_ph = np.array(ram_ten_one_ph)
-    Raman_ten_data_dict["1ph_light_omega"] = omega_one_ph_freq
-    Raman_ten_data_dict["1ph_ph_freq"] = ph_freq[0]
+    Raman_ten_data_dict["1ph_light_omega_eV"] = omega_one_ph_freq
+    Raman_ten_data_dict["1ph_ph_freq_cm-1"] = ph_freq[0]*219474.63
     Raman_ten_data_dict["1ph_Raman_tensor"] = ram_ten_one_ph
 
 
@@ -131,8 +131,8 @@ if two_ph:
 
     #
     ram_ten_two_ph = np.array(ram_ten_two_ph)
-    Raman_ten_data_dict["2ph_light_omega"] = np.array(omega_two_ph_freq) 
-    Raman_ten_data_dict["2ph_ph_freq"] = out_2ph_freq
+    Raman_ten_data_dict["2ph_light_omega_eV"] = np.array(omega_two_ph_freq) 
+    Raman_ten_data_dict["2ph_ph_freq_cm-1"] = out_2ph_freq*219474.63
     Raman_ten_data_dict["2ph_Raman_tensor"] = ram_ten_two_ph
 
 np.savez("Raman_tensors.npz", **Raman_ten_data_dict)
