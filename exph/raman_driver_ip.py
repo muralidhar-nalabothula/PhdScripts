@@ -97,14 +97,18 @@ if one_ph:
                                npol,
                                ph_fre_th=5)
         ram_ten_one_ph.append(tmp_ten)
+    #
     ram_ten_one_ph = np.array(ram_ten_one_ph)
-    Raman_ten_data_dict["1ph_omega"] = omega_one_ph_freq
+    Raman_ten_data_dict["1ph_light_omega"] = omega_one_ph_freq
+    Raman_ten_data_dict["1ph_ph_freq"] = ph_freq[0]
     Raman_ten_data_dict["1ph_Raman_tensor"] = ram_ten_one_ph
 
 
 if two_ph:
     ram_ten_two_ph = []
     print("Computing two-phonon Raman")
+    freq_out = True
+    out_2ph_freq = []
     for iw in omega_two_ph_freq:
         tmp_ten = compute_Raman_twoph_iq(iw,
                                      ph_freq,
@@ -116,10 +120,19 @@ if two_ph:
                                      CellVol,
                                      broading,
                                      npol=npol,
-                                     ktree=kpt_tree)
-        ram_ten_two_ph.append(tmp_ten)
+                                     ktree=kpt_tree,
+                                     out_freq=freq_out)
+        if freq_out:
+            ram_ten_two_ph.append(tmp_ten[1])
+            out_2ph_freq = tmp_ten[0]
+            freq_out = False
+        else:
+            ram_ten_two_ph.append(tmp_ten)
+
+    #
     ram_ten_two_ph = np.array(ram_ten_two_ph)
-    Raman_ten_data_dict["2ph_omega"] = np.array(omega_two_ph_freq) 
+    Raman_ten_data_dict["2ph_light_omega"] = np.array(omega_two_ph_freq) 
+    Raman_ten_data_dict["2ph_ph_freq"] = out_2ph_freq
     Raman_ten_data_dict["2ph_Raman_tensor"] = ram_ten_two_ph
 
 np.savez("Raman_tensors.npz", **Raman_ten_data_dict)

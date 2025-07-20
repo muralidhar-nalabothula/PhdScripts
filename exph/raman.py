@@ -156,7 +156,9 @@ def compute_Raman_twoph_iq(ome_light,
                            CellVol,
                            broading=0.1,
                            npol=3,
-                           ktree=None):
+                           ktree=None,
+                            out_freq=False
+                           ):
     """
     Computes the resonant Raman tensor for four distinct two-phonon processes at the
     independent particle level.
@@ -218,7 +220,8 @@ def compute_Raman_twoph_iq(ome_light,
 
     twoph_raman_ten = np.zeros((4, nq, n_modes, n_modes, 3, 3),
                                dtype=gkkp.dtype)
-
+    out_freq_2ph = []
+    if out_freq : out_freq_2ph = np.zeros((4,nq, n_modes,n_modes))
     for iq in range(nq):
         iqpt = qpts[iq]
         #
@@ -503,12 +506,19 @@ def compute_Raman_twoph_iq(ome_light,
                                 dipS_res,
                                 optimize=True)
                 twoph_raman_ten[3, iq, il, jl, :npol, :npol] -= tmp
+                if out_freq:
+                    out_freq_2ph[0,iq,il,jl] = ph_sum_aa
+                    out_freq_2ph[1,iq,il,jl] = ph_sum_ee
+                    out_freq_2ph[2,iq,il,jl] = ph_sum_ae
+                    out_freq_2ph[3,iq,il,jl] = ph_sum_ea
+
     #
     # muliply with prefactors.
     norm_factor = 1.0 / nk / math.sqrt(CellVol) / np.sqrt(nq)
     twoph_raman_ten *= norm_factor
     #
-    return twoph_raman_ten
+    if out_freq : return out_freq_2ph, twoph_raman_ten
+    else : return twoph_raman_ten
 
 
 #
