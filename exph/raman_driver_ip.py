@@ -26,7 +26,7 @@ SAVE_dir = folder + '/silicon.save/SAVE'
 elph_file = folder + '/elph/ndb.elph'
 Dmat_file = folder + '/elph/ndb.Dmats'
 dipole_file = folder + '/silicon.save/dipoles/ndb.dipoles'
-omega_one_ph_range = [0.001,4,10000]  ## (min max, numpoints) in eV
+omega_one_ph_range = [0.001,4,10]  ## (min max, numpoints) in eV
 omega_two_ph_freq = [1.0] ## list of frequecies in eV (not range liste omega_one_ph_range) 
 broading = 0.01  # in eV
 npol = 3
@@ -53,6 +53,12 @@ ph_sym, ph_time_rev, kpts, kmap, qpts, qmap, ph_freq, stard_conv, \
 ### Read dipoles
 ele_dips = get_dipoles(bands, nvalance_bnds, dip_file=dipole_file, var='DIP_v')
 
+#
+print("Number of valence bands : ",ele_dips.shape[2])
+print("Number of Conduction bands : ",ele_dips.shape[1])
+print("Number of kpoints in full BZ: ",len(kpts))
+print("Number of q-points: ",len(qpts))
+#
 nq, nmodes = ph_freq.shape
 #nmodes,nk, final_band_PH_abs, initial_band
 nbnds = max(bands) - min(bands) + 1
