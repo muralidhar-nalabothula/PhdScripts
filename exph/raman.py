@@ -157,7 +157,8 @@ def compute_Raman_twoph_iq(ome_light,
                            broading=0.1,
                            npol=3,
                            ktree=None,
-                            out_freq=False
+                           out_freq=False,
+                           contrib="all"
                            ):
     """
     Computes the resonant Raman tensor for four distinct two-phonon processes at the
@@ -177,13 +178,20 @@ def compute_Raman_twoph_iq(ome_light,
         Qp_ene (np.ndarray): Quasiparticle energies (nk, nbnds) in Hartree.
         elec_dip (np.ndarray): Dipoles for light emission <c|v|v> (npol, nk, nc, nv) in Hartree.
         gkkp (np.ndarray): e-ph matrix elements for phonon absorption <k+q|dV|k>
-                             (nq, n_modes, nk, nbands, nbands) in Hartree.
+                            (nq, n_modes, nk, nbands, nbands) in Hartree.
         kpts (np.ndarray): K-points in crystal coordinates.
         qpts (np.ndarray): Q-points in crystal coordinates.
         CellVol (float): Cell volume in atomic units.
         broading (float): Broadening parameter in eV.
         npol (int): Number of polarizations.
         ktree (KDTree, optional): Pre-computed KDTree for k-points.
+        out_freq (bool): If True, also returns the phonon frequency shifts.
+        contrib (str): Specifies which contributions to compute.
+                       "all": Compute all terms (M1, M2, M3, M4) (default).
+                       "ee": Compute only electron-electron (M1) terms.
+                       "hh": Compute only hole-hole (M2) terms.
+                       "eh": Compute only electron-hole (M3) terms.
+                       "he": Compute only hole-electron (M4) terms.
 
     Returns:
         np.ndarray: The two-phonon Raman tensor with shape
@@ -203,6 +211,13 @@ def compute_Raman_twoph_iq(ome_light,
     nq, n_modes = gkkp.shape[:2]
     assert (nq == len(qpts) and nq == len(ph_freq)), "Q-point number mismatch."
 
+    # Process contrib argument
+    contrib_lower = contrib.lower()
+    valid_contribs = ["all", "ee", "hh", "eh", "he"]
+    if contrib_lower not in valid_contribs:
+        raise ValueError(f"Invalid value for 'contrib'. "
+                         f"Must be one of {valid_contribs}, but got '{contrib}'.")
+
     elec_dip_absorp = elec_dip[:npol, ...].conj()
 
     broading_Ha = broading / 27.211 / 2.0
@@ -210,7 +225,7 @@ def compute_Raman_twoph_iq(ome_light,
 
     delta_energies = ome_light_Ha - Qp_ene[:, nv:,
                                            None] + Qp_ene[:, None, :
-                                                          nv] + 1j * broading_Ha
+                                                           nv] + 1j * broading_Ha
     dipS_res = elec_dip_absorp / delta_energies[None, :]
 
     tol = 1e-6
@@ -222,9 +237,10 @@ def compute_Raman_twoph_iq(ome_light,
                                dtype=gkkp.dtype)
     out_freq_2ph = []
     if out_freq : out_freq_2ph = np.zeros((4,nq, n_modes,n_modes))
+
     for iq in range(nq):
         iqpt = qpts[iq]
-        #
+        
         # Find indices for -q, k+q, k-q
         dist = qpts + iqpt[None]
         dist = dist - np.rint(dist)
@@ -232,14 +248,15 @@ def compute_Raman_twoph_iq(ome_light,
         minus_iq_idx = np.argmin(dist)
         dist = dist[minus_iq_idx]
         assert dist < 1e-5, "-q not found"
-        #
+        
         kplusq = (kpts + iqpt[None, :] + tol) % 1
         dist_kpq, idx_kplusq = ktree.query(kplusq, workers=-1)
         assert np.max(dist_kpq) < 1e-5, "k+q not found"
-        #
+        
         kminusq = (kpts - iqpt[None, :] + tol) % 1
         dist_kmq, idx_kminusq = ktree.query(kminusq, workers=-1)
         assert np.max(dist_kmq) < 1e-5, "k-q not found"
+
         # Ec - Ev
         delta_energies_kpq = delta_energies[idx_kplusq]
         delta_energies_kmq = delta_energies[idx_kminusq]
@@ -247,10 +264,11 @@ def compute_Raman_twoph_iq(ome_light,
             idx_kplusq, nv:, None] + Qp_ene[:, None, :nv] + 1j * broading_Ha
         delta_energies_kc_kmqv = ome_light_Ha - Qp_ene[:, nv:, None] + Qp_ene[
             idx_kminusq, None, :nv] + 1j * broading_Ha
+        
         # gkkps for (k,q), (k,-q), (k+q,k), (k-q,k)
         g_q = gkkp[iq]
         g_mq = gkkp[minus_iq_idx]
-        #
+        
         # Make C conitgious to minimize Cache misses
         gcc_k_q = g_q[:, :, nv:, nv:]
         gvv_k_q =g_q[:, :, :nv, :nv]
@@ -260,304 +278,200 @@ def compute_Raman_twoph_iq(ome_light,
         gvv_k_mq =g_mq[:, :, :nv, :nv]
         gcc_kmq_q =g_q[:, idx_kminusq, nv:, nv:]
         gvv_kmq_q =g_q[:, idx_kminusq, :nv, :nv]
+        
         # phonon freqs
         ph_freq_q = ph_freq[iq]
         ph_freq_mq = ph_freq[minus_iq_idx]
-        #
+        
         for il in range(n_modes):  # First phonon
             for jl in range(n_modes):  # Second phonon
-                #
+                
                 # ==============================================================================
                 # Process 0: ANTI-STOKES (Absorb/Absorb)
-                # Phonon (l, -q) and Phonon (lambda, q) are absorbed.
                 # ==============================================================================
-                #
-                # Einsum are retained only for understanding what is going is not
-                # optimzed.
-                #
                 ph_sum_aa = ph_freq_mq[jl] + ph_freq_q[il]
                 ram_fac = np.sqrt(
                     np.abs(ome_light_Ha + ph_sum_aa) / ome_light_Ha)
-                #
-                # M1 (E-E)
-                G1 = ram_fac * elec_dip_absorp.conj() / (
-                    ph_sum_aa + delta_energies)[None, ...]
-                G2 = 1.0 / (delta_energies_kqc_kv + ph_freq_q[il])
-                # tmp = np.einsum('ykCv,kCc,kcv,kcp,xkpv->xy',
-                #                 G1,
-                #                 gcc_kpq_mq[jl],
-                #                 G2,
-                #                 gcc_k_q[il],
-                #                 dipS_res,
-                #                 optimize=True)
-                tmp1 = ((gcc_kpq_mq[jl].transpose(0,2,1)@G1)*G2).reshape(npol,-1).T
-                tmp2 = (gcc_k_q[il]@dipS_res).reshape(npol,-1)
-                twoph_raman_ten[0, iq, il, jl, :npol, :npol] += tmp2@tmp1
-                #
-                # M2 (H-H)
-                G1 = ram_fac * elec_dip_absorp.conj() / (
-                    ph_sum_aa + delta_energies)[None, ...]
-                G2 = 1.0 / (delta_energies_kc_kmqv + ph_freq_q[il])
-                # tmp = np.einsum('ykcV,kvV,kcv,kpv,xkcp->xy',
-                #                 G1,
-                #                 gvv_k_mq[jl],
-                #                 G2,
-                #                 gvv_kmq_q[il],
-                #                 dipS_res,
-                #                 optimize=True)
-                tmp1 = ((G1@gvv_k_mq[jl].transpose(0,2,1))*G2).reshape(npol,-1).T
-                tmp2 = (dipS_res@gvv_kmq_q[il]).reshape(npol,-1)
-                twoph_raman_ten[0, iq, il, jl, :npol, :npol] += tmp2@tmp1
-                #
-                # M3 (E-H)
-                G1 = ram_fac * elec_dip_absorp[:, idx_kplusq].conj() / (
-                    ph_sum_aa + delta_energies_kpq)[None, ...]
-                G2 = 1.0 / (delta_energies_kqc_kv + ph_freq_q[il])
-                # tmp = np.einsum('ykCV,kvV,kCv,kCc,xkcv->xy',
-                #                 G1,
-                #                 gvv_kpq_mq[jl],
-                #                 G2,
-                #                 gcc_k_q[il],
-                #                 dipS_res,
-                #                 optimize=True)
-                tmp1 = (G1@gvv_kpq_mq[jl].transpose(0,2,1))*G2
-                tmp2 = (gcc_k_q[il].transpose(0,2,1)@tmp1).reshape(npol,-1).T
-                twoph_raman_ten[0, iq, il, jl, :npol, :npol] -= dipS_res.reshape(npol,-1)@tmp2
-                #
-                # M4 (H-E)
-                G1 = ram_fac * elec_dip_absorp[:, idx_kminusq].conj() / (
-                    ph_sum_aa + delta_energies_kmq)[None, ...]
-                G2 = 1.0 / (delta_energies_kc_kmqv + ph_freq_q[il])
-                # tmp = np.einsum('ykCV,kCc,kcV,kvV,xkcv->xy',
-                #                 G1,
-                #                 gcc_k_mq[jl],
-                #                 G2,
-                #                 gvv_kmq_q[il],
-                #                 dipS_res,
-                #                 optimize=True)
-                tmp1 = (gcc_k_mq[jl].transpose(0,2,1)@G1)*G2
-                tmp2 = (tmp1@gvv_kmq_q[il].transpose(0,2,1)).reshape(npol,-1).T
-                twoph_raman_ten[0, iq, il, jl, :npol, :npol] -= dipS_res.reshape(npol,-1)@tmp2
-                #
+                
+                if contrib_lower in ["all", "ee"]:
+                    # M1 (E-E)
+                    G1 = ram_fac * elec_dip_absorp.conj() / (
+                        ph_sum_aa + delta_energies)[None, ...]
+                    G2 = 1.0 / (delta_energies_kqc_kv + ph_freq_q[il])
+                    tmp1 = ((gcc_kpq_mq[jl].transpose(0,2,1)@G1)*G2).reshape(npol,-1).T
+                    tmp2 = (gcc_k_q[il]@dipS_res).reshape(npol,-1)
+                    twoph_raman_ten[0, iq, il, jl, :npol, :npol] += tmp2@tmp1
+                
+                if contrib_lower in ["all", "hh"]:
+                    # M2 (H-H)
+                    G1 = ram_fac * elec_dip_absorp.conj() / (
+                        ph_sum_aa + delta_energies)[None, ...]
+                    G2 = 1.0 / (delta_energies_kc_kmqv + ph_freq_q[il])
+                    tmp1 = ((G1@gvv_k_mq[jl].transpose(0,2,1))*G2).reshape(npol,-1).T
+                    tmp2 = (dipS_res@gvv_kmq_q[il]).reshape(npol,-1)
+                    twoph_raman_ten[0, iq, il, jl, :npol, :npol] += tmp2@tmp1
+                
+                if contrib_lower in ["all", "eh"]:
+                    # M3 (E-H)
+                    G1 = ram_fac * elec_dip_absorp[:, idx_kplusq].conj() / (
+                        ph_sum_aa + delta_energies_kpq)[None, ...]
+                    G2 = 1.0 / (delta_energies_kqc_kv + ph_freq_q[il])
+                    tmp1 = (G1@gvv_kpq_mq[jl].transpose(0,2,1))*G2
+                    tmp2 = (gcc_k_q[il].transpose(0,2,1)@tmp1).reshape(npol,-1).T
+                    twoph_raman_ten[0, iq, il, jl, :npol, :npol] -= dipS_res.reshape(npol,-1)@tmp2
+                
+                if contrib_lower in ["all", "he"]:
+                    # M4 (H-E)
+                    G1 = ram_fac * elec_dip_absorp[:, idx_kminusq].conj() / (
+                        ph_sum_aa + delta_energies_kmq)[None, ...]
+                    G2 = 1.0 / (delta_energies_kc_kmqv + ph_freq_q[il])
+                    tmp1 = (gcc_k_mq[jl].transpose(0,2,1)@G1)*G2
+                    tmp2 = (tmp1@gvv_kmq_q[il].transpose(0,2,1)).reshape(npol,-1).T
+                    twoph_raman_ten[0, iq, il, jl, :npol, :npol] -= dipS_res.reshape(npol,-1)@tmp2
+                
                 # ==============================================================================
                 # Process 1: STOKES (Emit/Emit, EE)
-                # Phonon (l, q) and Phonon (lambda, -q) are emitted.
                 # ==============================================================================
                 ph_sum_ee = -ph_freq_q[jl] - ph_freq_mq[il]
                 ram_fac = np.sqrt(
                     np.abs(ome_light_Ha + ph_sum_ee) / ome_light_Ha)
-                #
-                # M1 (E-E)
-                G1 = ram_fac * elec_dip_absorp.conj() / (
-                    ph_sum_ee + delta_energies)[None, ...]
-                G2 = 1.0 / (delta_energies_kqc_kv - ph_freq_mq[il])
-                # Note: (g^l)* is emission of l, (g^lambda)* is emission of lambda
-                # tmp = np.einsum('ykCv,kcC,kcv,kpc,xkpv->xy',
-                #                 G1,
-                #                 gcc_k_q[jl].conj(),
-                #                 G2,
-                #                 gcc_kpq_mq[il].conj(),
-                #                 dipS_res,
-                #                 optimize=True)
-                tmp1 = ((gcc_k_q[jl].conj()@G1)*G2).reshape(npol,-1).T
-                tmp2 = (gcc_kpq_mq[il].transpose(0,2,1).conj()@dipS_res).reshape(npol,-1)
-                twoph_raman_ten[1, iq, il, jl, :npol, :npol] += tmp2@tmp1
-                #
-                # M2 (H-H)
-                G1 = ram_fac * elec_dip_absorp.conj() / (
-                    ph_sum_ee + delta_energies)[None, ...]
-                G2 = 1.0 / (delta_energies_kc_kmqv - ph_freq_mq[il])
-                # tmp = np.einsum('ykcV,kVv,kcv,kvp,xkcp->xy',
-                #                 G1,
-                #                 gvv_kmq_q[jl].conj(),
-                #                 G2,
-                #                 gvv_k_mq[il].conj(),
-                #                 dipS_res,
-                #                 optimize=True)
-                tmp1 = ((G1@gvv_kmq_q[jl].conj())*G2).reshape(npol,-1).T
-                tmp2 = (dipS_res@gvv_k_mq[il].transpose(0,2,1).conj()).reshape(npol,-1)
-                twoph_raman_ten[1, iq, il, jl, :npol, :npol] += tmp2@tmp1
-                #
-                # M3 (E-H)
-                G1 = ram_fac * elec_dip_absorp[:, idx_kplusq].conj() / (
-                    ph_sum_ee + delta_energies_kpq)[None, ...]
-                G2 = 1.0 / (delta_energies_kqc_kv - ph_freq_mq[il])
-                # tmp = np.einsum('ykCV,kVv,kCv,kcC,xkcv->xy',
-                #                 G1,
-                #                 gvv_k_q[jl].conj(),
-                #                 G2,
-                #                 gcc_kpq_mq[il].conj(),
-                #                 dipS_res,
-                #                 optimize=True)
-                tmp1 = (G1@gvv_k_q[jl].conj())*G2
-                tmp2 = (gcc_kpq_mq[il].conj()@tmp1).reshape(npol,-1).T
-                twoph_raman_ten[1, iq, il, jl, :npol, :npol] -= dipS_res.reshape(npol,-1)@tmp2
-                #
-                # M4 (H-E)
-                G1 = ram_fac * elec_dip_absorp[:, idx_kminusq].conj() / (
-                    ph_sum_ee + delta_energies_kmq)[None, ...]
-                G2 = 1.0 / (delta_energies_kc_kmqv - ph_freq_mq[il])
-                # tmp = np.einsum('ykCV,kcC,kcV,kVv,xkcv->xy',
-                #                 G1,
-                #                 gcc_kmq_q[jl].conj(),
-                #                 G2,
-                #                 gvv_k_mq[il].conj(),
-                #                 dipS_res,
-                #                 optimize=True)
-                tmp1 = (gcc_kmq_q[jl].conj()@G1)*G2
-                tmp2 = (tmp1@gvv_k_mq[il].conj()).reshape(npol,-1).T
-                twoph_raman_ten[1, iq, il, jl, :npol, :npol] -= dipS_res.reshape(npol,-1)@tmp2
-                #
+
+                if contrib_lower in ["all", "ee"]:
+                    # M1 (E-E)
+                    G1 = ram_fac * elec_dip_absorp.conj() / (
+                        ph_sum_ee + delta_energies)[None, ...]
+                    G2 = 1.0 / (delta_energies_kqc_kv - ph_freq_mq[il])
+                    tmp1 = ((gcc_k_q[jl].conj()@G1)*G2).reshape(npol,-1).T
+                    tmp2 = (gcc_kpq_mq[il].transpose(0,2,1).conj()@dipS_res).reshape(npol,-1)
+                    twoph_raman_ten[1, iq, il, jl, :npol, :npol] += tmp2@tmp1
+
+                if contrib_lower in ["all", "hh"]:
+                    # M2 (H-H)
+                    G1 = ram_fac * elec_dip_absorp.conj() / (
+                        ph_sum_ee + delta_energies)[None, ...]
+                    G2 = 1.0 / (delta_energies_kc_kmqv - ph_freq_mq[il])
+                    tmp1 = ((G1@gvv_kmq_q[jl].conj())*G2).reshape(npol,-1).T
+                    tmp2 = (dipS_res@gvv_k_mq[il].transpose(0,2,1).conj()).reshape(npol,-1)
+                    twoph_raman_ten[1, iq, il, jl, :npol, :npol] += tmp2@tmp1
+
+                if contrib_lower in ["all", "eh"]:
+                    # M3 (E-H)
+                    G1 = ram_fac * elec_dip_absorp[:, idx_kplusq].conj() / (
+                        ph_sum_ee + delta_energies_kpq)[None, ...]
+                    G2 = 1.0 / (delta_energies_kqc_kv - ph_freq_mq[il])
+                    tmp1 = (G1@gvv_k_q[jl].conj())*G2
+                    tmp2 = (gcc_kpq_mq[il].conj()@tmp1).reshape(npol,-1).T
+                    twoph_raman_ten[1, iq, il, jl, :npol, :npol] -= dipS_res.reshape(npol,-1)@tmp2
+
+                if contrib_lower in ["all", "he"]:
+                    # M4 (H-E)
+                    G1 = ram_fac * elec_dip_absorp[:, idx_kminusq].conj() / (
+                        ph_sum_ee + delta_energies_kmq)[None, ...]
+                    G2 = 1.0 / (delta_energies_kc_kmqv - ph_freq_mq[il])
+                    tmp1 = (gcc_kmq_q[jl].conj()@G1)*G2
+                    tmp2 = (tmp1@gvv_k_mq[il].conj()).reshape(npol,-1).T
+                    twoph_raman_ten[1, iq, il, jl, :npol, :npol] -= dipS_res.reshape(npol,-1)@tmp2
+
                 # ==============================================================================
                 # Process 2: ABSORB/EMIT (AE)
-                # Phonon (lambda, q) is absorbed, Phonon (l, q) is emitted.
                 # ==============================================================================
                 ph_sum_ae = ph_freq_q[il] - ph_freq_q[jl]
                 ram_fac = np.sqrt(
                     np.abs(ome_light_Ha + ph_sum_ae) / ome_light_Ha)
-                #
-                # M1 (E-E)
-                G1 = ram_fac * elec_dip_absorp.conj() / (
-                    ph_sum_ae + delta_energies)[None, ...]
-                G2 = 1.0 / (delta_energies_kqc_kv + ph_freq_q[il])
-                # tmp = np.einsum('ykCv,kcC,kcv,kcp,xkpv->xy',
-                #                 G1,
-                #                 gcc_k_q[jl].conj(),
-                #                 G2,
-                #                 gcc_k_q[il],
-                #                 dipS_res,
-                #                 optimize=True)
-                tmp1 = ((gcc_k_q[jl].conj()@G1)*G2).reshape(npol,-1).T
-                tmp2 = (gcc_k_q[il]@dipS_res).reshape(npol,-1)
-                twoph_raman_ten[2, iq, il, jl, :npol, :npol] += tmp2@tmp1
-                #
-                # M2 (H-H)
-                G1 = ram_fac * elec_dip_absorp.conj() / (
-                    ph_sum_ae + delta_energies)[None, ...]
-                G2 = 1.0 / (delta_energies_kc_kmqv + ph_freq_q[il])
-                # tmp = np.einsum('ykcV,kVv,kcv,kpv,xkcp->xy',
-                #                 G1,
-                #                 gvv_kmq_q[jl].conj(),
-                #                 G2,
-                #                 gvv_kmq_q[il],
-                #                 dipS_res,
-                #                 optimize=True)
-                tmp1 = ((G1@gvv_kmq_q[jl].conj())*G2).reshape(npol,-1).T
-                tmp2 = (dipS_res@gvv_kmq_q[il]).reshape(npol,-1)
-                twoph_raman_ten[2, iq, il, jl, :npol, :npol] += tmp2@tmp1
-                #
-                # M3 (E-H)
-                G1 = ram_fac * elec_dip_absorp[:, idx_kplusq].conj() / (
-                    ph_sum_ae + delta_energies_kpq)[None, ...]
-                G2 = 1.0 / (delta_energies_kqc_kv + ph_freq_q[il])
-                # tmp = np.einsum('ykCV,kVv,kCv,kCc,xkcv->xy',
-                #                 G1,
-                #                 gvv_k_q[jl].conj(),
-                #                 G2,
-                #                 gcc_k_q[il],
-                #                 dipS_res,
-                #                 optimize=True)
-                tmp1 = (G1@gvv_k_q[jl].conj())*G2
-                tmp2 = (gcc_k_q[il].transpose(0,2,1)@tmp1).reshape(npol,-1).T
-                twoph_raman_ten[2, iq, il, jl, :npol, :npol] -= dipS_res.reshape(npol,-1)@tmp2
-                #
-                # M4 (H-E)
-                G1 = ram_fac * elec_dip_absorp[:, idx_kminusq].conj() / (
-                    ph_sum_ae + delta_energies_kmq)[None, ...]
-                G2 = 1.0 / (delta_energies_kc_kmqv + ph_freq_q[il])
-                # tmp = np.einsum('ykCV,kcC,kcV,kvV,xkcv->xy',
-                #                 G1,
-                #                 gcc_kmq_q[jl].conj(),
-                #                 G2,
-                #                 gvv_kmq_q[il],
-                #                 dipS_res,
-                #                 optimize=True)
-                tmp1 = (gcc_kmq_q[jl].conj()@G1)*G2
-                tmp2 = (tmp1@gvv_kmq_q[il].transpose(0,2,1)).reshape(npol,-1).T
-                twoph_raman_ten[2, iq, il, jl, :npol, :npol] -= dipS_res.reshape(npol,-1)@tmp2
-                #
+
+                if contrib_lower in ["all", "ee"]:
+                    # M1 (E-E)
+                    G1 = ram_fac * elec_dip_absorp.conj() / (
+                        ph_sum_ae + delta_energies)[None, ...]
+                    G2 = 1.0 / (delta_energies_kqc_kv + ph_freq_q[il])
+                    tmp1 = ((gcc_k_q[jl].conj()@G1)*G2).reshape(npol,-1).T
+                    tmp2 = (gcc_k_q[il]@dipS_res).reshape(npol,-1)
+                    twoph_raman_ten[2, iq, il, jl, :npol, :npol] += tmp2@tmp1
+                
+                if contrib_lower in ["all", "hh"]:
+                    # M2 (H-H)
+                    G1 = ram_fac * elec_dip_absorp.conj() / (
+                        ph_sum_ae + delta_energies)[None, ...]
+                    G2 = 1.0 / (delta_energies_kc_kmqv + ph_freq_q[il])
+                    tmp1 = ((G1@gvv_kmq_q[jl].conj())*G2).reshape(npol,-1).T
+                    tmp2 = (dipS_res@gvv_kmq_q[il]).reshape(npol,-1)
+                    twoph_raman_ten[2, iq, il, jl, :npol, :npol] += tmp2@tmp1
+
+                if contrib_lower in ["all", "eh"]:
+                    # M3 (E-H)
+                    G1 = ram_fac * elec_dip_absorp[:, idx_kplusq].conj() / (
+                        ph_sum_ae + delta_energies_kpq)[None, ...]
+                    G2 = 1.0 / (delta_energies_kqc_kv + ph_freq_q[il])
+                    tmp1 = (G1@gvv_k_q[jl].conj())*G2
+                    tmp2 = (gcc_k_q[il].transpose(0,2,1)@tmp1).reshape(npol,-1).T
+                    twoph_raman_ten[2, iq, il, jl, :npol, :npol] -= dipS_res.reshape(npol,-1)@tmp2
+
+                if contrib_lower in ["all", "he"]:
+                    # M4 (H-E)
+                    G1 = ram_fac * elec_dip_absorp[:, idx_kminusq].conj() / (
+                        ph_sum_ae + delta_energies_kmq)[None, ...]
+                    G2 = 1.0 / (delta_energies_kc_kmqv + ph_freq_q[il])
+                    tmp1 = (gcc_kmq_q[jl].conj()@G1)*G2
+                    tmp2 = (tmp1@gvv_kmq_q[il].transpose(0,2,1)).reshape(npol,-1).T
+                    twoph_raman_ten[2, iq, il, jl, :npol, :npol] -= dipS_res.reshape(npol,-1)@tmp2
+
                 # ==============================================================================
                 # Process 3: EMIT/ABSORB (EA)
-                # Phonon (lambda, -q) is emitted, Phonon (l, -q) is absorbed.
                 # ==============================================================================
                 ph_sum_ea = ph_freq_mq[jl] - ph_freq_mq[il]
                 ram_fac = np.sqrt(
                     np.abs(ome_light_Ha + ph_sum_ea) / ome_light_Ha)
-                #
-                # M1 (E-E)
-                G1 = ram_fac * elec_dip_absorp.conj() / (
-                    ph_sum_ea + delta_energies)[None, ...]
-                G2 = 1.0 / (delta_energies_kqc_kv - ph_freq_mq[il])
-                # tmp = np.einsum('ykCv,kCc,kcv,kpc,xkpv->xy',
-                #                 G1,
-                #                 gcc_kpq_mq[jl],
-                #                 G2,
-                #                 gcc_kpq_mq[il].conj(),
-                #                 dipS_res,
-                #                 optimize=True)
-                tmp1 = ((gcc_kpq_mq[jl].transpose(0,2,1)@G1)*G2).reshape(npol,-1).T
-                tmp2 = (gcc_kpq_mq[il].transpose(0,2,1).conj()@dipS_res).reshape(npol,-1)
-                twoph_raman_ten[3, iq, il, jl, :npol, :npol] += tmp2@tmp1
-                #
-                # M2 (H-H)
-                G1 = ram_fac * elec_dip_absorp.conj() / (
-                    ph_sum_ea + delta_energies)[None, ...]
-                G2 = 1.0 / (delta_energies_kc_kmqv - ph_freq_mq[il])
-                # tmp = np.einsum('ykcV,kvV,kcv,kvp,xkcp->xy',
-                #                 G1,
-                #                 gvv_k_mq[jl],
-                #                 G2,
-                #                 gvv_k_mq[il].conj(),
-                #                 dipS_res,
-                #                 optimize=True)
-                tmp1 = ((G1@gvv_k_mq[jl].transpose(0,2,1))*G2).reshape(npol,-1).T
-                tmp2 = (dipS_res@gvv_k_mq[il].transpose(0,2,1).conj()).reshape(npol,-1)
-                twoph_raman_ten[3, iq, il, jl, :npol, :npol] += tmp2@tmp1
-                #
-                # M3 (E-H)
-                G1 = ram_fac * elec_dip_absorp[:, idx_kplusq].conj() / (
-                    ph_sum_ea + delta_energies_kpq)[None, ...]
-                G2 = 1.0 / (delta_energies_kqc_kv - ph_freq_mq[il])
-                # tmp = np.einsum('ykCV,kvV,kCv,kcC,xkcv->xy',
-                #                 G1,
-                #                 gvv_kpq_mq[jl],
-                #                 G2,
-                #                 gcc_kpq_mq[il].conj(),
-                #                 dipS_res,
-                #                 optimize=True)
-                tmp1 = (G1@gvv_kpq_mq[jl].transpose(0,2,1))*G2
-                tmp2 = (gcc_kpq_mq[il].conj()@tmp1).reshape(npol,-1).T
-                twoph_raman_ten[3, iq, il, jl, :npol, :npol] -= dipS_res.reshape(npol,-1)@tmp2
-                #
-                # M4 (H-E)
-                G1 = ram_fac * elec_dip_absorp[:, idx_kminusq].conj() / (
-                    ph_sum_ea + delta_energies_kmq)[None, ...]
-                G2 = 1.0 / (delta_energies_kc_kmqv - ph_freq_mq[il])
-                # tmp = np.einsum('ykCV,kCc,kcV,kVv,xkcv->xy',
-                #                 G1,
-                #                 gcc_k_mq[jl],
-                #                 G2,
-                #                 gvv_k_mq[il].conj(),
-                #                 dipS_res,
-                #                 optimize=True)
-                tmp1 = (gcc_k_mq[jl].transpose(0,2,1)@G1)*G2
-                tmp2 = (tmp1@gvv_k_mq[il].conj()).reshape(npol,-1).T
-                twoph_raman_ten[3, iq, il, jl, :npol, :npol] -= dipS_res.reshape(npol,-1)@tmp2
+
+                if contrib_lower in ["all", "ee"]:
+                    # M1 (E-E)
+                    G1 = ram_fac * elec_dip_absorp.conj() / (
+                        ph_sum_ea + delta_energies)[None, ...]
+                    G2 = 1.0 / (delta_energies_kqc_kv - ph_freq_mq[il])
+                    tmp1 = ((gcc_kpq_mq[jl].transpose(0,2,1)@G1)*G2).reshape(npol,-1).T
+                    tmp2 = (gcc_kpq_mq[il].transpose(0,2,1).conj()@dipS_res).reshape(npol,-1)
+                    twoph_raman_ten[3, iq, il, jl, :npol, :npol] += tmp2@tmp1
+
+                if contrib_lower in ["all", "hh"]:
+                    # M2 (H-H)
+                    G1 = ram_fac * elec_dip_absorp.conj() / (
+                        ph_sum_ea + delta_energies)[None, ...]
+                    G2 = 1.0 / (delta_energies_kc_kmqv - ph_freq_mq[il])
+                    tmp1 = ((G1@gvv_k_mq[jl].transpose(0,2,1))*G2).reshape(npol,-1).T
+                    tmp2 = (dipS_res@gvv_k_mq[il].transpose(0,2,1).conj()).reshape(npol,-1)
+                    twoph_raman_ten[3, iq, il, jl, :npol, :npol] += tmp2@tmp1
+
+                if contrib_lower in ["all", "eh"]:
+                    # M3 (E-H)
+                    G1 = ram_fac * elec_dip_absorp[:, idx_kplusq].conj() / (
+                        ph_sum_ea + delta_energies_kpq)[None, ...]
+                    G2 = 1.0 / (delta_energies_kqc_kv - ph_freq_mq[il])
+                    tmp1 = (G1@gvv_kpq_mq[jl].transpose(0,2,1))*G2
+                    tmp2 = (gcc_kpq_mq[il].conj()@tmp1).reshape(npol,-1).T
+                    twoph_raman_ten[3, iq, il, jl, :npol, :npol] -= dipS_res.reshape(npol,-1)@tmp2
+
+                if contrib_lower in ["all", "he"]:
+                    # M4 (H-E)
+                    G1 = ram_fac * elec_dip_absorp[:, idx_kminusq].conj() / (
+                        ph_sum_ea + delta_energies_kmq)[None, ...]
+                    G2 = 1.0 / (delta_energies_kc_kmqv - ph_freq_mq[il])
+                    tmp1 = (gcc_k_mq[jl].transpose(0,2,1)@G1)*G2
+                    tmp2 = (tmp1@gvv_k_mq[il].conj()).reshape(npol,-1).T
+                    twoph_raman_ten[3, iq, il, jl, :npol, :npol] -= dipS_res.reshape(npol,-1)@tmp2
+
                 if out_freq:
                     out_freq_2ph[0,iq,il,jl] = ph_sum_aa
                     out_freq_2ph[1,iq,il,jl] = ph_sum_ee
                     out_freq_2ph[2,iq,il,jl] = ph_sum_ae
                     out_freq_2ph[3,iq,il,jl] = ph_sum_ea
 
-    #
-    # muliply with prefactors.
+    # Multiply with prefactors.
     norm_factor = 1.0 / nk / math.sqrt(CellVol) / np.sqrt(nq)
     twoph_raman_ten *= norm_factor
-    #
-    if out_freq : return out_freq_2ph, twoph_raman_ten
-    else : return twoph_raman_ten
 
-
+    if out_freq:
+        return out_freq_2ph, twoph_raman_ten
+    else:
+        return twoph_raman_ten
 #
 #
 ######################## TESTING ##############################
