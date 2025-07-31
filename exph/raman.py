@@ -380,10 +380,12 @@ def compute_Raman_twoph_iq(ome_light,
                     twoph_raman_ten[1, iq, il, jl, :npol, :npol] -= dipS_res.reshape(npol,-1)@tmp2
 
                 # ==============================================================================
-                # Process 2: ABSORB/EMIT (AE)
+                # Process 2a: ABSORB/EMIT (AE)
                 # ==============================================================================
+                # Note that process 2a and 2b, we donot take iq_mul_factor as we only take half
+                # the terms.
                 ph_sum_ae = ph_freq_q[il] - ph_freq_q[jl]
-                ram_fac = iq_mul_factor*np.sqrt(
+                ram_fac = np.sqrt(
                     np.abs(ome_light_Ha + ph_sum_ae) / ome_light_Ha)
 
                 if contrib_lower in ["all", "ee"]:
@@ -423,10 +425,10 @@ def compute_Raman_twoph_iq(ome_light,
                     twoph_raman_ten[2, iq, il, jl, :npol, :npol] -= dipS_res.reshape(npol,-1)@tmp2
 
                 # ==============================================================================
-                # Process 3: EMIT/ABSORB (EA)
+                # Process 2b: EMIT/ABSORB (EA)
                 # ==============================================================================
                 ph_sum_ea = ph_freq_mq[jl] - ph_freq_mq[il]
-                ram_fac = iq_mul_factor*np.sqrt(
+                ram_fac = np.sqrt(
                     np.abs(ome_light_Ha + ph_sum_ea) / ome_light_Ha)
 
                 if contrib_lower in ["all", "ee"]:
