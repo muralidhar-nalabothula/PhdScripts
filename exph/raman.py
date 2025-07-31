@@ -222,6 +222,7 @@ def compute_Raman_twoph_iq(ome_light,
 
     broading_Ha = broading / 27.211 / 2.0
     ome_light_Ha = ome_light / 27.211
+    ome_by_sqrt2 = 1.0/np.sqrt(2)
 
     delta_energies = ome_light_Ha - Qp_ene[:, nv:,
                                            None] + Qp_ene[:, None, :
@@ -230,7 +231,8 @@ def compute_Raman_twoph_iq(ome_light,
 
     tol = 1e-6
     if ktree is None:
-        kpos = (kpts + tol) % 1
+        kpos = kpts-np.floor(kpts)
+        kpos = (kpos + tol) % 1
         ktree = KDTree(kpos, boxsize=[1, 1, 1])
 
     twoph_raman_ten = np.zeros((4, nq, n_modes, n_modes, 3, 3),
@@ -248,7 +250,12 @@ def compute_Raman_twoph_iq(ome_light,
         minus_iq_idx = np.argmin(dist)
         dist = dist[minus_iq_idx]
         assert dist < 1e-5, "-q not found"
-        
+        #
+        # prefactor. This is because we simple sum over q
+        # instead of summing only for pair of q and -q
+        iq_mul_factor = 1.0
+        if (iq != minus_iq_idx): iq_mul_factor = ome_by_sqrt2;
+        #
         kplusq = (kpts + iqpt[None, :] + tol) % 1
         dist_kpq, idx_kplusq = ktree.query(kplusq, workers=-1)
         assert np.max(dist_kpq) < 1e-5, "k+q not found"
@@ -290,7 +297,7 @@ def compute_Raman_twoph_iq(ome_light,
                 # Process 0: ANTI-STOKES (Absorb/Absorb)
                 # ==============================================================================
                 ph_sum_aa = ph_freq_mq[jl] + ph_freq_q[il]
-                ram_fac = np.sqrt(
+                ram_fac = iq_mul_factor*np.sqrt(
                     np.abs(ome_light_Ha + ph_sum_aa) / ome_light_Ha)
                 
                 if contrib_lower in ["all", "ee"]:
@@ -333,7 +340,7 @@ def compute_Raman_twoph_iq(ome_light,
                 # Process 1: STOKES (Emit/Emit, EE)
                 # ==============================================================================
                 ph_sum_ee = -ph_freq_q[jl] - ph_freq_mq[il]
-                ram_fac = np.sqrt(
+                ram_fac = iq_mul_factor*np.sqrt(
                     np.abs(ome_light_Ha + ph_sum_ee) / ome_light_Ha)
 
                 if contrib_lower in ["all", "ee"]:
@@ -376,7 +383,7 @@ def compute_Raman_twoph_iq(ome_light,
                 # Process 2: ABSORB/EMIT (AE)
                 # ==============================================================================
                 ph_sum_ae = ph_freq_q[il] - ph_freq_q[jl]
-                ram_fac = np.sqrt(
+                ram_fac = iq_mul_factor*np.sqrt(
                     np.abs(ome_light_Ha + ph_sum_ae) / ome_light_Ha)
 
                 if contrib_lower in ["all", "ee"]:
@@ -419,7 +426,7 @@ def compute_Raman_twoph_iq(ome_light,
                 # Process 3: EMIT/ABSORB (EA)
                 # ==============================================================================
                 ph_sum_ea = ph_freq_mq[jl] - ph_freq_mq[il]
-                ram_fac = np.sqrt(
+                ram_fac = iq_mul_factor*np.sqrt(
                     np.abs(ome_light_Ha + ph_sum_ea) / ome_light_Ha)
 
                 if contrib_lower in ["all", "ee"]:
@@ -467,11 +474,24 @@ def compute_Raman_twoph_iq(ome_light,
     # Multiply with prefactors.
     norm_factor = 1.0 / nk / math.sqrt(CellVol) / np.sqrt(nq)
     twoph_raman_ten *= norm_factor
-
+    
+    # Now add q and -q terms
+    qpos = qpts-np.floor(qpts)
+    qpos = (qpos + tol) % 1
+    qtree = KDTree(qpos, boxsize=[1, 1, 1])
+    _,mq_idxs = qtree.query(-qpts,k=1)
+    #
+    tmp = twoph_raman_ten[0] + twoph_raman_ten[0][mq_idxs].transpose(0,2,1,3,4)
+    twoph_raman_ten[0] = tmp
+    #
+    tmp = twoph_raman_ten[1] + twoph_raman_ten[1][mq_idxs].transpose(0,2,1,3,4)
+    twoph_raman_ten[1] = tmp
+    #
+    twoph_raman_ten[2] += twoph_raman_ten[3][mq_idxs].transpose(0,2,1,3,4)
     if out_freq:
-        return out_freq_2ph, twoph_raman_ten
+        return out_freq_2ph[:3], twoph_raman_ten[:3]
     else:
-        return twoph_raman_ten
+        return twoph_raman_ten[:3]
 #
 #
 ######################## TESTING ##############################
@@ -605,7 +625,7 @@ def test_compute_raman_twoph():
                            nq, n_modes, nk, nbnds, nbnds)
     gkkp = (g_real + 1j * g_imag) * 1e-4
 
-    kpts = np.array([[0.0, 0.0, 0.0], [0.5, 0.0, 0.0], [0.0, 0.5, 0.0],
+    kpts = np.array([[0.0, 0.0, 0.0], [-0.5, 0.0, 0.0], [0.0, 0.5, 0.0],
                      [0.5, 0.5, 0.0]])
     qpts = np.array([[0.5, 0.5, 0.0], [0.5, 0.0, 0.0]])
     k_map = np.roll(kpts, -1, axis=0)
@@ -622,45 +642,35 @@ def test_compute_raman_twoph():
                                            broading=broading,
                                            npol=npol,
                                            ktree=None)
-    result = result.reshape(4,-1)
+    result = result.reshape(3,-1)
     rand_pick1 = np.array([ 127, 150, 116, 68, 67, 81, 74, 155, 98, 115, 84, 131, 40, 140, 110, 46 ])
     rand_pick2 = np.array([ 138, 57, 59, 74, 146, 155, 40, 149, 157, 113, 120, 148, 40, 24, 85, 142 ])
     rand_pick3 = np.array([ 47, 53, 40, 154, 94, 22, 127, 121, 40, 100, 12, 29, 24, 21, 116, 99 ])
-    rand_pick4 = np.array([ 97, 82, 141, 109, 156, 131, 20, 5, 11, 93, 46, 141, 131, 2, 143, 0 ])
     #
     ref_res = np.array([
-        [0.01192986-0.03019767j, 0.02978467-0.02869628j, 0.03233621-0.04474664j,
-         0.00989246-0.00941383j, 0.00859875-0.00660231j, 0.01107977-0.0134547j,
-         0.0062875-0.00994134j, 0.01038468-0.04452347j, 0.03249347-0.04408665j,
-         0.02903444-0.03264489j, 0.01741703-0.01513064j, 0.02323789-0.04918927j,
-         0.00795517-0.00481848j, 0.02260384-0.04321622j, 0.01148852-0.03062815j,
-         0.00566335-0.00570336j],
-        [0.02151343+0.02055804j, 0.00672177+0.00179631j,
-         0.011762-0.00009826j, 0.01222663+0.00094123j,
-         0.03954748+0.01592407j, 0.04352852+0.0198752j,
-         0.00934234+0.00156097j, 0.04821254+0.02968255j,
-         0.03858684+0.03229266j, 0.04016525+0.01972921j,
-         0.0215035+0.0213518j, 0.0356333+0.02719178j,
-         0.00934234+0.00156097j, 0.00800414+0.00380962j,
-         0.02745707+0.01531404j, 0.03825257+0.03191573j],
-        [-0.00831116+0.00310714j, -0.01487569+0.0010705j, -0.00783106+0.00143035j,
-         -0.03291897+0.01215251j, -0.0324311+0.00416147j, -0.00790955-0.00069783j,
-         -0.02988729+0.00951316j, -0.03637175+0.00682201j, -0.00783106+0.00143035j,
-         -0.02685074+0.00686733j, -0.00507707-0.00083575j, -0.0052129+0.00380744j,
-         -0.00707233-0.00283462j, -0.00581241-0.00164083j, -0.05042094+0.01252742j,
-         -0.02097336+0.00165968j],
-        [-0.04679024+0.00660723j, -0.02344677+0.00876329j, -0.03920278-0.00641103j,
-         -0.02685453+0.00859138j, -0.03927349+0.00089543j, -0.05594197+0.01907144j,
-         -0.00811318+0.00611459j, -0.00962123+0.00292443j, -0.00741523+0.00473135j,
-         -0.02806981+0.00200005j, -0.00854872+0.00401467j, -0.03920278-0.00641103j,
-         -0.05594197+0.01907144j, -0.00671469+0.00334149j, -0.0664776+0.00702562j,
-         -0.00441558+0.00086929j]
+        [0.02370519-0.0606795j,  0.0595814-0.05695087j, 0.06482968-0.08883329j,
+         0.01997198-0.01840819j, 0.01732709-0.01284454j, 0.02215954-0.0269094j,
+         0.01257501-0.01988268j, 0.02076935-0.08904694j, 0.06482968-0.08883329j,
+         0.05815613-0.06474335j, 0.03483406-0.03026129j, 0.04629167-0.09888207j,
+         0.01591035-0.00963696j, 0.04557751-0.08544062j, 0.02319235-0.06093612j,
+         0.01117465-0.01165123j],
+        [0.04298482+0.04175829j, 0.01337865+0.00415358j, 0.02373522+0.00074705j,
+         0.02445325+0.00188247j, 0.07926921+0.03226187j, 0.08705704+0.0397504j,
+         0.01868467+0.00312194j, 0.09658909+0.05992155j, 0.07717367+0.06458532j,
+         0.08048352+0.04000037j, 0.043007+0.04270359j, 0.0713391+0.05482515j,
+         0.01868467+0.00312194j, 0.01613142+0.00695626j, 0.05491413+0.03062807j,
+         0.07659879+0.06490992j],
+        [-0.01933132+0.00756446j, -0.03490316+0.00345063j, -0.01851361+0.00354942j,
+         -0.06968648+0.02585299j, -0.06954453+0.00950634j, -0.01866642-0.00057332j,
+         -0.06341267+0.02058042j, -0.07771536+0.0148068j,  -0.01851361+0.00354942j,
+         -0.0571203+0.01528793j, -0.01206034-0.00137282j, -0.01262813+0.00853879j,
+         -0.01697254-0.00540643j, -0.01382215-0.002895j,   -0.10852985+0.02673477j,
+         -0.04462379+0.00411623j]
     ])
     max1 = np.max(np.abs(result[0][rand_pick1]-ref_res[0]))
     max2 = np.max(np.abs(result[1][rand_pick2]-ref_res[1]))
     max3 = np.max(np.abs(result[2][rand_pick3]-ref_res[2]))
-    max4 = np.max(np.abs(result[3][rand_pick4]-ref_res[3]))
-    max_final = max([max1,max2,max3,max4])
+    max_final = max([max1,max2,max3])
     return max_final < 1e-6
 
 
