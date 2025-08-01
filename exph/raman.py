@@ -672,7 +672,8 @@ def test_compute_raman_twoph():
     max1 = np.max(np.abs(result[0][rand_pick1]-ref_res[0]))
     max2 = np.max(np.abs(result[1][rand_pick2]-ref_res[1]))
     max3 = np.max(np.abs(result[2][rand_pick3]-ref_res[2]))
-    max_final = max([max1,max2,max3])
+    max4 = np.max(np.abs(result[3][rand_pick4]-ref_res[3]))
+    max_final = max([max1,max2,max3,max4])
     return max_final < 1e-6
 
 
