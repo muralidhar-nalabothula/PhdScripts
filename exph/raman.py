@@ -222,7 +222,6 @@ def compute_Raman_twoph_iq(ome_light,
 
     broading_Ha = broading / 27.211 / 2.0
     ome_light_Ha = ome_light / 27.211
-    ome_by_sqrt2 = 1.0/np.sqrt(2)
 
     delta_energies = ome_light_Ha - Qp_ene[:, nv:,
                                            None] + Qp_ene[:, None, :
