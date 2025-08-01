@@ -286,13 +286,19 @@ def compute_Raman_twoph_iq(ome_light,
         
         for il in range(n_modes):  # First phonon
             for jl in range(n_modes):  # Second phonon
-                
+                #
+                ij_modes_fac = 1.0
+                if (il == jl and iq == minus_iq_idx): ij_modes_fac = 0.5
+                # this is becuse for q = -q and il= jl, we have 
+                # same diagrams
+                #
+                #
                 # ==============================================================================
                 # Process 0: ANTI-STOKES (Absorb/Absorb)
                 # ==============================================================================
                 ph_sum_aa = ph_freq_mq[jl] + ph_freq_q[il]
                 ram_fac = np.sqrt(
-                    np.abs(ome_light_Ha + ph_sum_aa) / ome_light_Ha)
+                    ij_modes_fac*np.abs(ome_light_Ha + ph_sum_aa) / ome_light_Ha)
                 
                 if contrib_lower in ["all", "ee"]:
                     # M1 (E-E)
@@ -334,7 +340,7 @@ def compute_Raman_twoph_iq(ome_light,
                 # Process 1: STOKES (Emit/Emit, EE)
                 # ==============================================================================
                 ph_sum_ee = -ph_freq_q[jl] - ph_freq_mq[il]
-                ram_fac = np.sqrt(
+                ram_fac = ij_modes_fac*np.sqrt(
                     np.abs(ome_light_Ha + ph_sum_ee) / ome_light_Ha)
 
                 if contrib_lower in ["all", "ee"]:
@@ -377,7 +383,7 @@ def compute_Raman_twoph_iq(ome_light,
                 # Process 2a: ABSORB/EMIT (AE)
                 # ==============================================================================
                 ph_sum_ae = ph_freq_q[il] - ph_freq_q[jl]
-                ram_fac = np.sqrt(
+                ram_fac = ij_modes_fac*np.sqrt(
                     np.abs(ome_light_Ha + ph_sum_ae) / ome_light_Ha)
 
                 if contrib_lower in ["all", "ee"]:
@@ -420,7 +426,7 @@ def compute_Raman_twoph_iq(ome_light,
                 # Process 2b: EMIT/ABSORB (EA)
                 # ==============================================================================
                 ph_sum_ea = ph_freq_mq[jl] - ph_freq_mq[il]
-                ram_fac = np.sqrt(
+                ram_fac = ij_modes_fac*np.sqrt(
                     np.abs(ome_light_Ha + ph_sum_ea) / ome_light_Ha)
 
                 if contrib_lower in ["all", "ee"]:
@@ -475,18 +481,27 @@ def compute_Raman_twoph_iq(ome_light,
     qtree = KDTree(qpos, boxsize=[1, 1, 1])
     _,mq_idxs = qtree.query(-qpts,k=1)
     #
+    # We compute only 4 terms, add the other four terms (q,l,m) + (-q, m, l)
+    # as we sum over -q and q, we need to multiple by 1/sqrt(2), so to avoid
+    # double counting when computing the Intensity by suming all q's (which include -q too)
+    idx_fac_mul = (mq_idxs != np.arange(len(qpts),dtype=int))
+    #
     tmp = twoph_raman_ten[0] + twoph_raman_ten[0][mq_idxs].transpose(0,2,1,3,4)
+    tmp[idx_fac_mul] *= 1.0/np.sqrt(2)
     twoph_raman_ten[0] = tmp
     #
     tmp = twoph_raman_ten[1] + twoph_raman_ten[1][mq_idxs].transpose(0,2,1,3,4)
+    tmp[idx_fac_mul] *= 1.0/np.sqrt(2)
     twoph_raman_ten[1] = tmp
     #
+    # We donot need to Absorp-emit as it is does not have double countint. (q and -q )
+    # are distinct terms
     twoph_raman_ten[2] += twoph_raman_ten[3][mq_idxs].transpose(0,2,1,3,4)
-    twoph_raman_ten[3] = twoph_raman_ten[2][mq_idxs].transpose(0,2,1,3,4)
+    #
     if out_freq:
-        return out_freq_2ph, twoph_raman_ten
+        return out_freq_2ph[:3], twoph_raman_ten[:3]
     else:
-        return twoph_raman_ten
+        return twoph_raman_ten[:3]
 #
 #
 ######################## TESTING ##############################
@@ -637,11 +652,10 @@ def test_compute_raman_twoph():
                                            broading=broading,
                                            npol=npol,
                                            ktree=None)
-    result = result.reshape(4,-1)
+    result = result.reshape(3,-1)
     rand_pick1 = np.array([ 127, 150, 116, 68, 67, 81, 74, 155, 98, 115, 84, 131, 40, 140, 110, 46 ])
     rand_pick2 = np.array([ 138, 57, 59, 74, 146, 155, 40, 149, 157, 113, 120, 148, 40, 24, 85, 142 ])
     rand_pick3 = np.array([ 47, 53, 40, 154, 94, 22, 127, 121, 40, 100, 12, 29, 24, 21, 116, 99 ])
-    rand_pick4 = np.array([ 47, 53, 40, 154, 94, 22, 127, 121, 40, 100, 12, 29, 24, 21, 116, 99 ])[::-1]
     #
     ref_res = np.array([
         [0.02370519-0.0606795j, 0.0595814-0.05695087j, 0.06482968-0.08883329j,
@@ -662,18 +676,11 @@ def test_compute_raman_twoph():
          -0.0571203+0.01528793j, -0.01206034-0.00137282j, -0.01262813+0.00853879j,
          -0.01697254-0.00540643j, -0.01382215-0.002895j, -0.10852985+0.02673477j,
          -0.04462379+0.00411623j],
-        [-0.04278976+0.01233946j, -0.11108469+0.01530806j, -0.01358739+0.0032732j,
-         -0.01742857+0.00232366j, -0.01434377+0.00508203j, -0.01194858+0.00171198j,
-         -0.05294519+0.02556946j, -0.01851361+0.00354942j, -0.07771536+0.0148068j,
-         -0.06130214+0.02570927j, -0.0170354+0.0073942j, -0.06795021+0.0166856j,
-         -0.06968648+0.02585299j, -0.01851361+0.00354942j, -0.03357904+0.00975868j,
-         -0.0176001+0.01101092j]
     ])
     max1 = np.max(np.abs(result[0][rand_pick1]-ref_res[0]))
     max2 = np.max(np.abs(result[1][rand_pick2]-ref_res[1]))
     max3 = np.max(np.abs(result[2][rand_pick3]-ref_res[2]))
-    max4 = np.max(np.abs(result[3][rand_pick4]-ref_res[3]))
-    max_final = max([max1,max2,max3,max4])
+    max_final = max([max1,max2,max3])
     return max_final < 1e-6
 
 
