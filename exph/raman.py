@@ -286,19 +286,13 @@ def compute_Raman_twoph_iq(ome_light,
         
         for il in range(n_modes):  # First phonon
             for jl in range(n_modes):  # Second phonon
-                #
-                ij_modes_fac = 1.0
-                if (il == jl and iq == minus_iq_idx): ij_modes_fac = 0.5
-                # this is becuse for q = -q and il= jl, we have 
-                # same diagrams
-                #
-                #
+                
                 # ==============================================================================
                 # Process 0: ANTI-STOKES (Absorb/Absorb)
                 # ==============================================================================
                 ph_sum_aa = ph_freq_mq[jl] + ph_freq_q[il]
                 ram_fac = np.sqrt(
-                    ij_modes_fac*np.abs(ome_light_Ha + ph_sum_aa) / ome_light_Ha)
+                    np.abs(ome_light_Ha + ph_sum_aa) / ome_light_Ha)
                 
                 if contrib_lower in ["all", "ee"]:
                     # M1 (E-E)
@@ -340,7 +334,7 @@ def compute_Raman_twoph_iq(ome_light,
                 # Process 1: STOKES (Emit/Emit, EE)
                 # ==============================================================================
                 ph_sum_ee = -ph_freq_q[jl] - ph_freq_mq[il]
-                ram_fac = ij_modes_fac*np.sqrt(
+                ram_fac = np.sqrt(
                     np.abs(ome_light_Ha + ph_sum_ee) / ome_light_Ha)
 
                 if contrib_lower in ["all", "ee"]:
@@ -383,7 +377,7 @@ def compute_Raman_twoph_iq(ome_light,
                 # Process 2a: ABSORB/EMIT (AE)
                 # ==============================================================================
                 ph_sum_ae = ph_freq_q[il] - ph_freq_q[jl]
-                ram_fac = ij_modes_fac*np.sqrt(
+                ram_fac = np.sqrt(
                     np.abs(ome_light_Ha + ph_sum_ae) / ome_light_Ha)
 
                 if contrib_lower in ["all", "ee"]:
@@ -426,7 +420,7 @@ def compute_Raman_twoph_iq(ome_light,
                 # Process 2b: EMIT/ABSORB (EA)
                 # ==============================================================================
                 ph_sum_ea = ph_freq_mq[jl] - ph_freq_mq[il]
-                ram_fac = ij_modes_fac*np.sqrt(
+                ram_fac = np.sqrt(
                     np.abs(ome_light_Ha + ph_sum_ea) / ome_light_Ha)
 
                 if contrib_lower in ["all", "ee"]:
@@ -494,7 +488,7 @@ def compute_Raman_twoph_iq(ome_light,
     tmp[idx_fac_mul] *= 1.0/np.sqrt(2)
     twoph_raman_ten[1] = tmp
     #
-    # We donot need to Absorp-emit as it is does not have double countint. (q and -q )
+    # We donot need to Absorp-emit as it is does not have double counting (q and -q )
     # are distinct terms
     twoph_raman_ten[2] += twoph_raman_ten[3][mq_idxs].transpose(0,2,1,3,4)
     #
