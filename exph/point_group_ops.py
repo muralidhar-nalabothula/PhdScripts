@@ -187,68 +187,113 @@ def Sn(axis, n):
     """
     return np.dot(reflection_matrix(axis), Cn(axis, n))
 
+def check_transform(R, mats1, mats2, tol=1e-3):
+    """
+    Checks if the transformation R correctly maps mats1 to mats2.
+    """
+    # Take a sample matrix from the first group (avoiding identity)
+    s_old = None
+    for mat in mats1:
+        if not np.allclose(mat, np.eye(3)):
+            s_old = mat
+            break
+    if s_old is None: # Only identity matrix in group
+        return True
+
+    # Apply the transformation
+    s_transformed = R @ s_old @ R.T
+
+    # Check if the transformed matrix exists in the second group
+    for s_new in mats2:
+        if np.allclose(s_transformed, s_new, atol=tol):
+            return True # Found a match!
+    
+    return False # No match found
+
 
 def transform_matrix(sym_mats_old, sym_mats_new):
-    #paxis_old, paxis_new):
     """
-    Given two point groups, find a tranformation matrix that
-    can map the two groups
-    Note: R is not uniquely defined !
+    Given two point groups, find a transformation matrix R that
+    maps the two groups (R @ S_old @ R.T = S_new).
+    Note: R is not uniquely defined!
     """
-    # find R such that R@paxis_old = paxis_new
     assert len(sym_mats_old) == len(sym_mats_new)
+
+    # Handle trivial case
+    if len(sym_mats_old) == 1:
+        return np.eye(3)
+
     px_1 = get_paxis(sym_mats_old)
     px_2 = get_paxis(sym_mats_new)
     assert len(px_1) == len(px_2)
-    p1 = normalize(px_1[0])
-    p2 = normalize(px_2[0])
-    dot = np.dot(p1, p2)
-    theta = np.arccos(dot)
-    if abs(abs(dot) - 1) < 1e-4:
-        R1 = np.sign(dot) * np.eye(3)
-    else:
-        axis = np.cross(p1, p2)
-        axis = normalize(axis)
-        R1 = rotation_matrix(axis, theta)
-        if len(sym_mats_old) == 1:
-            return R1
-    ## check if it has more than 1 paxis
-    if len(px_1) > 1:
-        v1 = normalize(px_1[1])
-        v2 = normalize(px_2[1])
-    else:
-        ## else check it the group has vertical place
-        dets1, nfold1, axes1 = find_symm_axis(sym_mats_old)
-        dets2, nfold2, axes2 = find_symm_axis(sym_mats_new)
-        if np.abs(nfold1).max() < 2:
-            return R1
-        bool_arr1 = np.logical_and(dets1 < 0, np.abs(nfold1) == 2)
-        bool_arr2 = np.logical_and(dets2 < 0, np.abs(nfold2) == 2)
-        paxis_dot1 = np.abs(axes1 @ p1)
-        paxis_dot2 = np.abs(axes2 @ p2)
-        bool_arr1 = np.logical_and(bool_arr1, paxis_dot1 < 1e-4)
-        bool_arr2 = np.logical_and(bool_arr2, paxis_dot2 < 1e-4)
-        sec_axis1 = axes1[bool_arr1, :]
-        sec_axis2 = axes2[bool_arr2, :]
-        assert len(sec_axis1) == len(sec_axis2)
-        if len(sec_axis1) == 0:
-            return R1
-        v1 = normalize(sec_axis1[0])
-        v2 = normalize(sec_axis2[0])
-    #
-    R1v1_dot_v2 = np.dot(R1 @ v1, v2)
-    if np.isclose(abs(R1v1_dot_v2), 1, rtol=1e-3):
-        return R1
-    #
-    angle_in = np.arccos(R1v1_dot_v2)
-    axis_2 = np.cross(R1 @ v1, v2)
-    axis_2 = normalize(axis_2)
-    print(np.dot(axis_2, p2))
-    assert np.isclose(abs(np.dot(axis_2, p2)), 1, rtol=1e-3)
-    R2 = rotation_matrix(axis_2, angle_in)
-    R = R2 @ R1
-    return R
 
+    # Find secondary axes (e.g., perpendicular C2 axes or mirror plane normals)
+    dets1, nfold1, axes1 = find_symm_axis(sym_mats_old)
+    dets2, nfold2, axes2 = find_symm_axis(sym_mats_new)
+    
+    # Logic to find a suitable secondary axis (can be adapted for different conventions)
+    # Here we look for C2 axes perpendicular to the first principal axis
+    paxis_dot1 = np.abs(axes1 @ px_1[0])
+    paxis_dot2 = np.abs(axes2 @ px_2[0])
+    bool_arr1 = np.logical_and(np.abs(nfold1) == 2, paxis_dot1 < 1e-4)
+    bool_arr2 = np.logical_and(np.abs(nfold2) == 2, paxis_dot2 < 1e-4)
+    sec_axis1 = axes1[bool_arr1]
+    sec_axis2 = axes2[bool_arr2]
+
+    # Loop through all possible principal axis pairings
+    for p1 in px_1:
+        p1 = normalize(p1)
+        for p2 in px_2:
+            p2 = normalize(p2)
+            
+            # --- First rotation R1: Align principal axes ---
+            dot = np.dot(p1, p2)
+            if abs(abs(dot) - 1) < 1e-4:
+                R1 = np.sign(dot) * np.eye(3)
+            else:
+                axis = normalize(np.cross(p1, p2))
+                theta = np.arccos(np.clip(dot, -1.0, 1.0))
+                R1 = rotation_matrix(axis, theta)
+
+            # If there are no secondary axes to align, verify and return
+            if len(sec_axis1) == 0:
+                if check_transform(R1, sym_mats_old, sym_mats_new):
+                    return R1
+                else:
+                    continue # Try next axis pairing
+
+            # --- Second rotation R2: Align secondary axes ---
+            v1 = normalize(sec_axis1[0])
+            
+            # Find the best matching secondary axis in the new frame
+            v1_rotated = R1 @ v1
+            dots = np.abs(sec_axis2 @ v1_rotated)
+            best_match_idx = np.argmax(dots)
+            v2 = normalize(sec_axis2[best_match_idx])
+
+            # R2 is a rotation around p2 to align v1_rotated with v2
+            v1_rot_proj = normalize(v1_rotated - np.dot(v1_rotated, p2) * p2)
+            v2_proj = normalize(v2 - np.dot(v2, p2) * p2)
+
+            dot2 = np.dot(v1_rot_proj, v2_proj)
+            if abs(abs(dot2) - 1) < 1e-4:
+                R2 = np.eye(3) # Already aligned
+            else:
+                # The rotation axis for R2 must be the principal axis p2
+                angle2 = np.arccos(np.clip(dot2, -1.0, 1.0))
+                # Determine the sign of the angle
+                c = np.cross(v1_rot_proj, v2_proj)
+                if np.dot(p2, c) < 0:
+                    angle2 = -angle2
+                R2 = rotation_matrix(p2, angle2)
+
+            R = R2 @ R1
+            
+            # --- Verification ---
+            if check_transform(R, sym_mats_old, sym_mats_new):
+                return R # Success!
+
+    raise ValueError("Failed to find a transformation matrix. The groups may not be isomorphic.")
 
 def reduce(n, i):
     """

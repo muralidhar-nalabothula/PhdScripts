@@ -4,9 +4,10 @@ from yambopy.dbs.excitondb import YamboExcitonDB
 from yambopy.dbs.latticedb import YamboLatticeDB
 from yambopy.dbs.wfdb import YamboWFDB
 from yambopy.bse.rotate_excitonwf import rotate_exc_wf
+from yambopy.tools.degeneracy_finder import find_degeneracy_evs
 from point_group_ops import get_pg_info, decompose_rep2irrep
 
-def compute_exc_rep(path='.', bse_dir='SAVE', iqpt=1, nstates=-1, degen_tol = 1e-2):
+def compute_exc_rep(path='.', bse_dir='SAVE', iqpt=1, nstates=-1, degen_tol = 1e-2, degen_rtol=1e-3):
     # Load the lattice database
     lattice = YamboLatticeDB.from_db_file(os.path.join(path, 'SAVE', 'ns.db1'))
     filename = 'ndb.BS_diago_Q%d' % (iqpt)
@@ -37,10 +38,14 @@ def compute_exc_rep(path='.', bse_dir='SAVE', iqpt=1, nstates=-1, degen_tol = 1e
     Ak_l = Akcv_left[sort_idx][pos_idx-nstates:pos_idx+nstates].conj()
     exe_ene = eigs[pos_idx-nstates:pos_idx+nstates]
     #
-    ### get unique values upto threshould
-    uni_eigs, degen_eigs = np.unique((exe_ene / degen_tol).astype(int),
-                                 return_counts=True)
-    uni_eigs = uni_eigs * degen_tol
+    degen_idx = find_degeneracy_evs(exe_ene,atol=degen_tol,rtol=degen_rtol)
+    uni_eigs = []
+    degen_eigs = []
+    for i in degen_idx:
+        uni_eigs.append(np.mean(exe_ene[i]))
+        degen_eigs.append(len(i))
+    uni_eigs = np.array(uni_eigs)
+    degen_eigs = np.array(degen_eigs,dtype=int)
 
     excQpt = excdb.car_qpoint
     # Convert the q-point to crystal coordinates
