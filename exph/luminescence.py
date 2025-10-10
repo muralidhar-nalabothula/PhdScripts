@@ -23,7 +23,7 @@ def compute_luminescence(ome_light,
     ## and exciton phonon matrix elements for phonon absorption <S',Q|dV_Q|S,0>
     ## energy of the lowest energy energy exe_low_energy
     Nqpts, nmode, nbnd_i, nbnd_f = ex_ph.shape
-    broading = numpy_float(broading / 27.211 / 2)
+    broading = numpy_float(broading / 27.211 / 2.0)
     ome_light_Ha = numpy_float(ome_light / 27.211)
     KbT = numpy_float(3.1726919127302026e-06 * temp)  ## Ha
     bolt_man_fac = -(ex_ene - exe_low_energy) / KbT
@@ -31,8 +31,10 @@ def compute_luminescence(ome_light,
     sum_out = 0.0
     for iq in prange(Nqpts):
         for iv in range(nmode):
-            ome_fac = ome_light_Ha * (ome_light_Ha + 2 * ph_freq[iq, iv])**2
-            bose_ph_fac = 1 + (1 / (np.exp(ph_freq[iq, iv] / KbT) - 1))
+            ome_fac = ome_light_Ha * (ome_light_Ha - 2 * ph_freq[iq, iv])**2
+            exp_ph_bose = np.exp(abs(ph_freq[iq, iv]) / KbT)
+            bose_ph_fac = 1.0
+            if exp_ph_bose > 1 :bose_ph_fac += (1.0 / ( exp_ph_bose - 1))
             E_f_omega = ex_ene[iq, :] - ph_freq[iq, iv]
             Tmu = np.zeros((npol, nbnd_f), dtype=numpy_Cmplx)  # D*G
             ## compute scattering matrix
@@ -42,6 +44,6 @@ def compute_luminescence(ome_light,
                         /(ex_ene[0,ii] - E_f_omega + numpy_Cmplx(1j*broading))
             ## abs and sum over initial states and pols
             Gamma_mu = bose_ph_fac * np.sum(np.abs(Tmu)**2,axis=0) * ome_fac * bolt_man_fac[iq,:] \
-                        /E_f_omega/((ome_light_Ha-E_f_omega)**2 + broading**2)
+                        /((ome_light_Ha-E_f_omega)**2 + broading**2)
             sum_out = sum_out + np.sum(Gamma_mu)
     return sum_out * broading / np.pi / Nqpts
