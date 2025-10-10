@@ -6,7 +6,7 @@ from numba import njit, prange
 import os
 from exph_precision import *
 
-warnings.filterwarnings('ignore')
+#warnings.filterwarnings('ignore')
 
 
 @njit(cache=True, nogil=True, parallel=True)

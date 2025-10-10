@@ -8,41 +8,71 @@ from time import time
 from exe_dips import exe_dipoles
 from exph_precision import *
 from kpts import find_kpatch
+import sys
+import yaml
 
-# # ### Basic input
-# SAVE_dir = '../gw_bse/SAVE'
-# BSE_dir  = '../gw_bse/GW_BSE'
-# elph_file = '../ndb.elph'
-# Dmat_file = '../ndb.Dmats'
-# nstates = 50
-# lumin = True ## compute luminescence if set to true
-# Exph = True
-# Temp = 20 ## temperature used in luminescence (in Kelvin)
-# ome_range = [5.1,5.8,10000] ## (min max, numpoints)
-# broading = 0.01 # in eV
-# npol = 3
+"""
+# Example input file
+calc_folder: "../../"
+SAVE_dir: "gw_bse/SAVE"
+BSE_dir: "gw_bse/GW_BSE"
+elph_file: "elph/ndb.elph"
+Dmat_file: "elph/ndb.Dmats"
+nstates: 10
+lumin: true
+Exph: false
+Temp: 20
+ome_range: [1.35, 1.5, 40000]
+broading: 0.004
+kcentre:
+  - [0.1666667, 0.1666667, 0.0]
+  - 0.0897598
+npol: 3
+"""
+# --- Read input file ---
+if len(sys.argv) < 2:
+    print("Usage: python3 xx.py inputfile.in")
+    sys.exit(1)
 
-# ## test case
-calc_folder = '../../'
-SAVE_dir = calc_folder + 'gw_bse/SAVE'
-BSE_dir = calc_folder + 'gw_bse/GW_BSE'
-elph_file = calc_folder + 'elph/ndb.elph'
-Dmat_file = calc_folder + 'elph/ndb.Dmats'
-nstates = 10
-lumin = True  #False  ## compute luminescence if set to true
-Exph = False  #True
-Temp = 20  ## temperature used in luminescence (in Kelvin)
-ome_range = [1.35, 1.5, 40000]  ## (min max, numpoints)
-broading = 0.004  # in eV
-kcentre = [[1.0 / 6, 1.0 / 6, 0], 2 * np.pi / 7 * 0.1
-          ]  ## only take kpoints around this point. [[kx,ky,kz],k_dist]
-#             [kx,ky,kz] kpoint in crystal coorinates and k_dist in cart units (1/bohr)
-#             if empty, consider all points.
-npol = 3
-# ### end of input
+input_file = sys.argv[1]
 
+with open(input_file, "r") as f:
+    params = yaml.safe_load(f)
+
+# Read inputs
+calc_folder = params.get("calc_folder", ".")
+SAVE_dir = calc_folder + params.get("SAVE_dir", "SAVE")
+BSE_dir = calc_folder + params.get("BSE_dir", "SAVE")
+elph_file = calc_folder + params.get("elph_file", "ndb.elph")
+Dmat_file = calc_folder + params.get("Dmat_file", "ndb.Dmats")
+nstates = params.get("nstates", 1)
+lumin = params.get("lumin", True)
+Exph = params.get("Exph", True)
+Temp = params.get("Temp", 20)
+ome_range = params.get("ome_range", [0.1, 1.0, 10])
+broading = params.get("broading", 0.004)
+kcentre = params.get("kcentre", [])
+npol = params.get("npol", 3)
+#
 ## read the lattice data
 print('*' * 30, ' Program started ', '*' * 30)
+#
+print("\n===== Input Parameters =====")
+print(f"calc_folder : {calc_folder}")
+print(f"SAVE_dir    : {SAVE_dir}")
+print(f"BSE_dir     : {BSE_dir}")
+print(f"elph_file   : {elph_file}")
+print(f"Dmat_file   : {Dmat_file}")
+print(f"nstates     : {nstates}")
+print(f"lumin       : {lumin}")
+print(f"Exph        : {Exph}")
+print(f"Temp        : {Temp}")
+print(f"ome_range   : {ome_range}")
+print(f"broading    : {broading}")
+print(f"kcentre     : {kcentre}")
+print(f"npol        : {npol}")
+print("============================\n")
+#
 print('Reading Lattice data')
 lat_vecs, nibz, symm_mats, ele_time_rev, _ = get_SAVE_Data(save_folder=SAVE_dir)
 blat_vecs = np.linalg.inv(lat_vecs.T)
