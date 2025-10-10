@@ -44,6 +44,6 @@ def compute_luminescence(ome_light,
                         /(ex_ene[0,ii] - E_f_omega + numpy_Cmplx(1j*broading))
             ## abs and sum over initial states and pols
             Gamma_mu = bose_ph_fac * np.sum(np.abs(Tmu)**2,axis=0) * ome_fac * bolt_man_fac[iq,:] \
-                        /((ome_light_Ha-E_f_omega)**2 + broading**2)
+                        /E_f_omega/((ome_light_Ha-E_f_omega)**2 + broading**2)
             sum_out = sum_out + np.sum(Gamma_mu)
     return sum_out * broading / np.pi / Nqpts
