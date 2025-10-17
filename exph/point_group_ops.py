@@ -210,90 +210,151 @@ def check_transform(R, mats1, mats2, tol=1e-3):
     
     return False # No match found
 
+def check_transform(R, mats1, mats2, tol=1e-3):
+    """
+    Verifies if the transformation R correctly maps a sample matrix from
+    mats1 to a corresponding matrix in mats2.
+    The transformation is defined as S_new = R @ S_old @ R.T for orthogonal R.
+    """
+    s_old = None
+    # Pick a sample matrix from the first group that is not the identity.
+    # Using a more complex matrix is a more robust test.
+    for mat in sorted(mats1, key=lambda m: -np.abs(np.trace(m))):
+        if not np.allclose(mat, np.eye(3), atol=tol):
+            s_old = mat
+            break
+
+    # If only the identity matrix exists, the transform is trivially correct.
+    if s_old is None:
+        return True
+
+    # Apply the transformation
+    s_transformed = R @ s_old @ R.T
+
+    # Check if this transformed matrix exists in the second group
+    for s_new in mats2:
+        if np.allclose(s_transformed, s_new, atol=tol):
+            return True  # Found a match!
+
+    return False  # No match found, the transformation is incorrect.
+
 
 def transform_matrix(sym_mats_old, sym_mats_new):
     """
-    Given two point groups, find a transformation matrix R that
-    maps the two groups (R @ S_old @ R.T = S_new).
-    Note: R is not uniquely defined!
-    """
-    assert len(sym_mats_old) == len(sym_mats_new)
+    Finds a transformation matrix R that maps two point groups.
 
-    # Handle trivial case
-    if len(sym_mats_old) == 1:
+    This function is robust for all molecular point groups (e.g., Oh, Td, Dnh, Cnv)
+    by systematically testing axis pairings and using a fallback mechanism for
+    groups without perpendicular C2 axes.
+
+    Args:
+        sym_mats_old (list or np.ndarray): A list of 3x3 symmetry matrices for the original group.
+        sym_mats_new (list or np.ndarray): A list of 3x3 symmetry matrices for the target group.
+
+    Returns:
+        np.ndarray: A 3x3 transformation matrix R.
+
+    Raises:
+        ValueError: If no valid transformation matrix can be found.
+    """
+    # 1. Sanitize Inputs
+    mats1 = np.array(sym_mats_old)[:, :3, :3]
+    mats2 = np.array(sym_mats_new)[:, :3, :3]
+    assert len(mats1) == len(mats2), "Groups must have the same number of symmetry operations."
+
+    if len(mats1) <= 1:
         return np.eye(3)
 
-    px_1 = get_paxis(sym_mats_old)
-    px_2 = get_paxis(sym_mats_new)
-    assert len(px_1) == len(px_2)
+    # 2. Identify Symmetry Elements
+    px_1 = get_paxis(mats1)
+    px_2 = get_paxis(mats2)
+    assert len(px_1) > 0 and len(px_2) > 0, "Could not determine principal axis for one or both groups."
 
-    # Find secondary axes (e.g., perpendicular C2 axes or mirror plane normals)
-    dets1, nfold1, axes1 = find_symm_axis(sym_mats_old)
-    dets2, nfold2, axes2 = find_symm_axis(sym_mats_new)
-    
-    # Logic to find a suitable secondary axis (can be adapted for different conventions)
-    # Here we look for C2 axes perpendicular to the first principal axis
-    paxis_dot1 = np.abs(axes1 @ px_1[0])
-    paxis_dot2 = np.abs(axes2 @ px_2[0])
-    bool_arr1 = np.logical_and(np.abs(nfold1) == 2, paxis_dot1 < 1e-4)
-    bool_arr2 = np.logical_and(np.abs(nfold2) == 2, paxis_dot2 < 1e-4)
-    sec_axis1 = axes1[bool_arr1]
-    sec_axis2 = axes2[bool_arr2]
+    dets1, nfold1, axes1 = find_symm_axis(mats1)
+    dets2, nfold2, axes2 = find_symm_axis(mats2)
 
-    # Loop through all possible principal axis pairings
+    # 3. Define Secondary Axis Search Strategies
+    # Strategy 1 (Primary): Look for perpendicular C2 axes (det > 0).
+    is_c2_op1 = np.logical_and(dets1 > 0, np.abs(nfold1) == 2)
+    is_perp1 = np.abs(axes1 @ px_1[0]) < 1e-4
+    sec_axis1_c2 = axes1[np.logical_and(is_c2_op1, is_perp1)]
+
+    is_c2_op2 = np.logical_and(dets2 > 0, np.abs(nfold2) == 2)
+    is_perp2 = np.abs(axes2 @ px_2[0]) < 1e-4
+    sec_axis2_c2 = axes2[np.logical_and(is_c2_op2, is_perp2)]
+
+    # Strategy 2 (Fallback): Look for vertical mirror planes (det < 0).
+    # The axis of a mirror plane operation is the normal to the plane.
+    is_mirror1 = dets1 < 0
+    sec_axis1_mirror = axes1[np.logical_and(is_mirror1, is_perp1)]
+
+    is_mirror2 = dets2 < 0
+    sec_axis2_mirror = axes2[np.logical_and(is_mirror2, is_perp2)]
+
+    # Choose the appropriate set of secondary axes. Prioritize C2 axes.
+    sec_axis1 = sec_axis1_c2 if len(sec_axis1_c2) > 0 else sec_axis1_mirror
+    sec_axis2 = sec_axis2_c2 if len(sec_axis2_c2) > 0 else sec_axis2_mirror
+
+    # 4. Iterative Search for the Transformation Matrix
     for p1 in px_1:
         p1 = normalize(p1)
         for p2 in px_2:
             p2 = normalize(p2)
-            
-            # --- First rotation R1: Align principal axes ---
+
+            # --- Find R1: Align principal axes ---
             dot = np.dot(p1, p2)
-            if abs(abs(dot) - 1) < 1e-4:
+            if abs(abs(dot) - 1) < 1e-4: # Already parallel or anti-parallel
                 R1 = np.sign(dot) * np.eye(3)
             else:
                 axis = normalize(np.cross(p1, p2))
                 theta = np.arccos(np.clip(dot, -1.0, 1.0))
                 R1 = rotation_matrix(axis, theta)
 
-            # If there are no secondary axes to align, verify and return
+            # If no secondary axes exist (e.g., for C_n groups), R1 might be sufficient.
             if len(sec_axis1) == 0:
-                if check_transform(R1, sym_mats_old, sym_mats_new):
+                if check_transform(R1, mats1, mats2):
                     return R1
                 else:
-                    continue # Try next axis pairing
+                    continue # Try next principal axis pair
 
-            # --- Second rotation R2: Align secondary axes ---
-            v1 = normalize(sec_axis1[0])
-            
-            # Find the best matching secondary axis in the new frame
+            # --- Find R2: Align secondary axes ---
+            # We only need to align one secondary axis correctly.
+            v1_candidate = sec_axis1[0]
+            v1 = normalize(v1_candidate)
             v1_rotated = R1 @ v1
-            dots = np.abs(sec_axis2 @ v1_rotated)
-            best_match_idx = np.argmax(dots)
+
+            # Find the best matching secondary axis in the new frame
+            dots = sec_axis2 @ v1_rotated
+            best_match_idx = np.argmax(np.abs(dots))
             v2 = normalize(sec_axis2[best_match_idx])
 
-            # R2 is a rotation around p2 to align v1_rotated with v2
-            v1_rot_proj = normalize(v1_rotated - np.dot(v1_rotated, p2) * p2)
-            v2_proj = normalize(v2 - np.dot(v2, p2) * p2)
+            # Correct for sign ambiguity (v2 and -v2 are the same axis/normal)
+            if np.dot(v1_rotated, v2) < 0:
+                v2 = -v2
 
-            dot2 = np.dot(v1_rot_proj, v2_proj)
-            if abs(abs(dot2) - 1) < 1e-4:
+            # Find the rotation (R2) around the principal axis p2 that aligns the secondary axes.
+            v1_proj = normalize(v1_rotated - np.dot(v1_rotated, p2) * p2)
+            v2_proj = normalize(v2 - np.dot(v2, p2) * p2)
+            dot2 = np.clip(np.dot(v1_proj, v2_proj), -1.0, 1.0)
+
+            if abs(dot2) > 1 - 1e-5:
                 R2 = np.eye(3) # Already aligned
             else:
-                # The rotation axis for R2 must be the principal axis p2
-                angle2 = np.arccos(np.clip(dot2, -1.0, 1.0))
-                # Determine the sign of the angle
-                c = np.cross(v1_rot_proj, v2_proj)
-                if np.dot(p2, c) < 0:
+                angle2 = np.arccos(dot2)
+                # Determine sign of rotation from the cross product
+                cross_prod = np.cross(v1_proj, v2_proj)
+                if np.dot(p2, cross_prod) < 0:
                     angle2 = -angle2
                 R2 = rotation_matrix(p2, angle2)
 
-            R = R2 @ R1
-            
-            # --- Verification ---
-            if check_transform(R, sym_mats_old, sym_mats_new):
-                return R # Success!
+            R_candidate = R2 @ R1
 
-    raise ValueError("Failed to find a transformation matrix. The groups may not be isomorphic.")
+            # 5. Final Verification
+            if check_transform(R_candidate, mats1, mats2):
+                return R_candidate # Success!
+
+    raise ValueError("Failed to find a valid transformation matrix. The groups may not be isomorphic.")
+
 
 def reduce(n, i):
     """
