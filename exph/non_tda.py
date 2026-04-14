@@ -7,45 +7,56 @@ from yambopy.bse.rotate_excitonwf import rotate_exc_wf
 from yambopy.tools.degeneracy_finder import find_degeneracy_evs
 from point_group_ops import get_pg_info, decompose_rep2irrep
 
-def compute_exc_rep(path='.', bse_dir='SAVE', iqpt=1, nstates=-1, degen_tol = 1e-2, degen_rtol=1e-3):
+
+def compute_exc_rep(path='.',
+                    bse_dir='SAVE',
+                    iqpt=1,
+                    nstates=-1,
+                    degen_tol=1e-2,
+                    degen_rtol=1e-3):
     # Load the lattice database
     lattice = YamboLatticeDB.from_db_file(os.path.join(path, 'SAVE', 'ns.db1'))
     filename = 'ndb.BS_diago_Q%d' % (iqpt)
-    excdb = YamboExcitonDB.from_db_file(lattice, filename=filename,
-                                             folder=os.path.join(path, bse_dir),
-                                             Load_WF=True, neigs=-1)
+    excdb = YamboExcitonDB.from_db_file(lattice,
+                                        filename=filename,
+                                        folder=os.path.join(path, bse_dir),
+                                        Load_WF=True,
+                                        neigs=-1)
     # Load the wavefunction database
-    wfdb = YamboWFDB(path=path, latdb=lattice,
-                      bands_range=[np.min(excdb.table[:, 1]) - 1,
-                    np.max(excdb.table[:, 2])])
+    wfdb = YamboWFDB(
+        path=path,
+        latdb=lattice,
+        bands_range=[np.min(excdb.table[:, 1]) - 1,
+                     np.max(excdb.table[:, 2])])
     Akcv = excdb.get_Akcv()
     Akcv_left = Akcv
     if Akcv.shape[1] == 2:
         if os.path.exists('BS_left_ev_Cache.npy'):
             Akcv_left = np.load('BS_left_ev_Cache.npy')
         else:
-            Akcv_left = np.linalg.inv(Akcv.reshape(len(Akcv),-1)).conj().T.reshape(Akcv.shape)
-            np.save('BS_left_ev_Cache',Akcv_left)
+            Akcv_left = np.linalg.inv(Akcv.reshape(
+                len(Akcv), -1)).conj().T.reshape(Akcv.shape)
+            np.save('BS_left_ev_Cache', Akcv_left)
     #
     eigs = excdb.eigenvalues.real
     sort_idx = np.argsort(eigs)
     eigs = eigs[sort_idx].copy()
     pos_idx = np.where(eigs > 0)
-    assert len(pos_idx) >0, "No postive eigenvalues found"
+    assert len(pos_idx) > 0, "No postive eigenvalues found"
     pos_idx = pos_idx[0][0]
     #
-    Ak_r = Akcv[sort_idx][pos_idx-nstates:pos_idx+nstates]
-    Ak_l = Akcv_left[sort_idx][pos_idx-nstates:pos_idx+nstates].conj()
-    exe_ene = eigs[pos_idx-nstates:pos_idx+nstates]
+    Ak_r = Akcv[sort_idx][pos_idx - nstates:pos_idx + nstates]
+    Ak_l = Akcv_left[sort_idx][pos_idx - nstates:pos_idx + nstates].conj()
+    exe_ene = eigs[pos_idx - nstates:pos_idx + nstates]
     #
-    degen_idx = find_degeneracy_evs(exe_ene,atol=degen_tol,rtol=degen_rtol)
+    degen_idx = find_degeneracy_evs(exe_ene, atol=degen_tol, rtol=degen_rtol)
     uni_eigs = []
     degen_eigs = []
     for i in degen_idx:
         uni_eigs.append(np.mean(exe_ene[i]))
         degen_eigs.append(len(i))
     uni_eigs = np.array(uni_eigs)
-    degen_eigs = np.array(degen_eigs,dtype=int)
+    degen_eigs = np.array(degen_eigs, dtype=int)
 
     excQpt = excdb.car_qpoint
     # Convert the q-point to crystal coordinates
@@ -57,7 +68,7 @@ def compute_exc_rep(path='.', bse_dir='SAVE', iqpt=1, nstates=-1, degen_tol = 1e
         dmats = np.load('Dmat_elec_Cache.npy')
     else:
         dmats = wfdb.Dmat()
-        np.save('Dmat_elec_Cache',dmats)
+        np.save('Dmat_elec_Cache', dmats)
     #
     trev_fac = 1 + int(np.rint(lattice.time_rev))
     ## print some data about the degeneracies
@@ -69,23 +80,29 @@ def compute_exc_rep(path='.', bse_dir='SAVE', iqpt=1, nstates=-1, degen_tol = 1e
     trace_all_imag = []
     little_group = []
     #
-    for isym in range(len(lattice.sym_car)//trev_fac):
+    for isym in range(len(lattice.sym_car) // trev_fac):
         symm_mat = lattice.sym_car[isym]
-        symm_mat_red = lat_vec@symm_mat@lat_vec_inv
+        symm_mat_red = lat_vec @ symm_mat @ lat_vec_inv
         #isym = 2
-        Sq_minus_q = np.einsum('ij,j->i', symm_mat_red,
-                           excQpt) - excQpt
+        Sq_minus_q = np.einsum('ij,j->i', symm_mat_red, excQpt) - excQpt
         #print(Sq_minus_q)
         #diff = Sq_minus_q.copy()
         Sq_minus_q = Sq_minus_q - np.rint(Sq_minus_q)
         ## check if Sq = q
-        if np.linalg.norm(Sq_minus_q) > 10**-5: continue
+        if np.linalg.norm(Sq_minus_q) > 10**-5:
+            continue
         little_group.append(isym + 1)
-        tau_dot_k = 1.0#np.exp(1j * 2 * np.pi *
+        tau_dot_k = 1.0  #np.exp(1j * 2 * np.pi *
         #               np.dot(excQpt, frac_trans[isym]))
         #assert(np.linalg.norm(Sq_minus_q)<10**-5)
-        rot_Akcv = rotate_exc_wf(Ak_r, symm_mat_red, wfdb.kBZ, excQpt, dmats[isym], False, ktree=wfdb.ktree)
-        rep = np.einsum('m...,n...->mn',Ak_l,rot_Akcv,optimize=True)
+        rot_Akcv = rotate_exc_wf(Ak_r,
+                                 symm_mat_red,
+                                 wfdb.kBZ,
+                                 excQpt,
+                                 dmats[isym],
+                                 False,
+                                 ktree=wfdb.ktree)
+        rep = np.einsum('m...,n...->mn', Ak_l, rot_Akcv, optimize=True)
 
         #print('Symmetry number : ',isym + 1)
         ## print characters
@@ -125,16 +142,19 @@ def compute_exc_rep(path='.', bse_dir='SAVE', iqpt=1, nstates=-1, degen_tol = 1e
     trace = trace_all_real + 1j * trace_all_imag
     trace_req = trace[req_sym_characters, :].T
     print("====== Exciton representations ======")
-    print("Energy (eV),  degenercy  : representation")
+    print("Energy (eV),  degeneracy  : representation")
     print('-' * 40)
     for i in range(len(trace_req)):
-        rep_str_tmp = decompose_rep2irrep(trace_req[i], char_tab, len(little_group),
-                                          class_orders, irreps)
+        rep_str_tmp = decompose_rep2irrep(trace_req[i], char_tab,
+                                          len(little_group), class_orders,
+                                          irreps)
         print('%.4f        %9d  : ' % (uni_eigs[i], degen_eigs[i]), rep_str_tmp)
     print('*' * 40)
 
 
-
 if __name__ == "__main__":
-    compute_exc_rep(path='..', bse_dir='GW_BSE', iqpt=1, nstates=3, degen_tol = 1e-2)
-
+    compute_exc_rep(path='..',
+                    bse_dir='GW_BSE',
+                    iqpt=1,
+                    nstates=3,
+                    degen_tol=1e-2)

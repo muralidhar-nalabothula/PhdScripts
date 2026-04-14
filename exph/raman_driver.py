@@ -126,18 +126,13 @@ elph_file.close()
 if Raman:
     ome_range = np.linspace(ome_range[0], ome_range[1], num=ome_range[2])
     BS_eigs
-    Raman_inten = []
     print('Computing Raman tensor ...')
-    raman_ten = []
-    for i in tqdm(range(ome_range.shape[0]), desc="Raman tensor"):
-        raman_ten_tmp = compute_Raman_oneph_exc(ome_range[i], ph_freq[0][modes], BS_eigs, \
+    #
+    raman_ten = compute_Raman_oneph_exc(ome_range, ph_freq[0][modes], BS_eigs, \
             ex_dip, ex_ph, len(kpts), CellVol, broading=broading, npol=npol, ph_fre_th=8)
-        raman_ten.append(raman_ten_tmp)
-    ## save intensties
-
+    #
     raman_ten = np.array(raman_ten)[:, :, :npol, :npol]
-
     raman_inte = np.sum(np.abs(raman_ten)**2, axis=(2, 3))
     np.savetxt('Raman_intensities.dat',
                np.concatenate((ome_range[:, None], raman_inte), axis=1))
-    np.save('Raman_tensor', np.array(Raman_inten))
+    np.save('Raman_tensor', np.array(raman_ten))

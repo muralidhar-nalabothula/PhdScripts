@@ -10,7 +10,6 @@ from exph_precision import *
 from kpts import find_kpatch
 import sys
 import yaml
-
 """
 # Example input file
 calc_folder: "../../"

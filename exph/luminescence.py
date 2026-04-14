@@ -34,7 +34,8 @@ def compute_luminescence(ome_light,
             ome_fac = ome_light_Ha * (ome_light_Ha - 2 * ph_freq[iq, iv])**2
             exp_ph_bose = np.exp(abs(ph_freq[iq, iv]) / KbT)
             bose_ph_fac = 1.0
-            if exp_ph_bose > 1 :bose_ph_fac += (1.0 / ( exp_ph_bose - 1))
+            if exp_ph_bose > 1:
+                bose_ph_fac += (1.0 / (exp_ph_bose - 1))
             E_f_omega = ex_ene[iq, :] - ph_freq[iq, iv]
             Tmu = np.zeros((npol, nbnd_f), dtype=numpy_Cmplx)  # D*G
             ## compute scattering matrix

@@ -187,6 +187,7 @@ def Sn(axis, n):
     """
     return np.dot(reflection_matrix(axis), Cn(axis, n))
 
+
 def check_transform(R, mats1, mats2, tol=1e-3):
     """
     Checks if the transformation R correctly maps mats1 to mats2.
@@ -197,7 +198,7 @@ def check_transform(R, mats1, mats2, tol=1e-3):
         if not np.allclose(mat, np.eye(3)):
             s_old = mat
             break
-    if s_old is None: # Only identity matrix in group
+    if s_old is None:  # Only identity matrix in group
         return True
 
     # Apply the transformation
@@ -206,9 +207,10 @@ def check_transform(R, mats1, mats2, tol=1e-3):
     # Check if the transformed matrix exists in the second group
     for s_new in mats2:
         if np.allclose(s_transformed, s_new, atol=tol):
-            return True # Found a match!
-    
-    return False # No match found
+            return True  # Found a match!
+
+    return False  # No match found
+
 
 def check_transform(R, mats1, mats2, tol=1e-3):
     """
@@ -260,7 +262,8 @@ def transform_matrix(sym_mats_old, sym_mats_new):
     # 1. Sanitize Inputs
     mats1 = np.array(sym_mats_old)[:, :3, :3]
     mats2 = np.array(sym_mats_new)[:, :3, :3]
-    assert len(mats1) == len(mats2), "Groups must have the same number of symmetry operations."
+    assert len(mats1) == len(
+        mats2), "Groups must have the same number of symmetry operations."
 
     if len(mats1) <= 1:
         return np.eye(3)
@@ -268,7 +271,8 @@ def transform_matrix(sym_mats_old, sym_mats_new):
     # 2. Identify Symmetry Elements
     px_1 = get_paxis(mats1)
     px_2 = get_paxis(mats2)
-    assert len(px_1) > 0 and len(px_2) > 0, "Could not determine principal axis for one or both groups."
+    assert len(px_1) > 0 and len(
+        px_2) > 0, "Could not determine principal axis for one or both groups."
 
     dets1, nfold1, axes1 = find_symm_axis(mats1)
     dets2, nfold2, axes2 = find_symm_axis(mats2)
@@ -303,7 +307,7 @@ def transform_matrix(sym_mats_old, sym_mats_new):
 
             # --- Find R1: Align principal axes ---
             dot = np.dot(p1, p2)
-            if abs(abs(dot) - 1) < 1e-4: # Already parallel or anti-parallel
+            if abs(abs(dot) - 1) < 1e-4:  # Already parallel or anti-parallel
                 R1 = np.sign(dot) * np.eye(3)
             else:
                 axis = normalize(np.cross(p1, p2))
@@ -315,7 +319,7 @@ def transform_matrix(sym_mats_old, sym_mats_new):
                 if check_transform(R1, mats1, mats2):
                     return R1
                 else:
-                    continue # Try next principal axis pair
+                    continue  # Try next principal axis pair
 
             # --- Find R2: Align secondary axes ---
             # We only need to align one secondary axis correctly.
@@ -338,7 +342,7 @@ def transform_matrix(sym_mats_old, sym_mats_new):
             dot2 = np.clip(np.dot(v1_proj, v2_proj), -1.0, 1.0)
 
             if abs(dot2) > 1 - 1e-5:
-                R2 = np.eye(3) # Already aligned
+                R2 = np.eye(3)  # Already aligned
             else:
                 angle2 = np.arccos(dot2)
                 # Determine sign of rotation from the cross product
@@ -351,9 +355,11 @@ def transform_matrix(sym_mats_old, sym_mats_new):
 
             # 5. Final Verification
             if check_transform(R_candidate, mats1, mats2):
-                return R_candidate # Success!
+                return R_candidate  # Success!
 
-    raise ValueError("Failed to find a valid transformation matrix. The groups may not be isomorphic.")
+    raise ValueError(
+        "Failed to find a valid transformation matrix. The groups may not be isomorphic."
+    )
 
 
 def reduce(n, i):
