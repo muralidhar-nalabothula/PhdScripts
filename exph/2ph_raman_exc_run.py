@@ -2,14 +2,14 @@ import numpy as np
 import matplotlib.pyplot as plt
 from yambopy.exciton_phonon.excph_luminescence import exc_ph_luminescence
 from yambopy.exciton_phonon.excph_input_data import exc_ph_get_inputs
-from .raman import compute_two_ph_raman_exc
+from raman import compute_two_ph_raman_exc
 from netCDF4 import Dataset
 from yambopy.kpoints import build_ktree, find_kpt
 import os
 
-path = '3D_hBN'
+path = '.'
 # Path to BSE calculation (Lout--> response is Lfull)
-bsepath =  f'{path}/bse_Lfull' # ndb.BS_diago_Q* databases are needed
+bsepath =  f'{path}/GW_BSE' # ndb.BS_diago_Q* databases are needed
 # Path to BSE calculation for optically active exciton (Lin --> response is Lbar)
 elphpath = path # ndb.elph is needed
 # Path to unprojected dipoles matrix elements (optional)
@@ -24,9 +24,9 @@ nexc_in  = 12 # 12 excitonic states at Q=0 (Lin)
 T_ph  = 10 # Lattice temperature
 T_exc = 10 # Effective excitonic temperature
 
-emin=4.4      # Energy range and plot details (in eV)
-emax=4.7
-estep=0.0002
+emin=6      # Energy range and plot details (in eV)
+emax=7
+nsteps=1000
 broad = 0.005 # Broadening parameter for peak width (in eV)
 
 # We calculate and load all the inputs:
@@ -42,11 +42,19 @@ input_data = exc_ph_get_inputs(savepath,elphpath,bsepath,\
 
 ph_energies, exc_energies, exc_energies_in, exph_mat, exc_dipoles = input_data
 
+
+
+ph_energies /= 27.21111
+exc_energies /= 27.21111
+exc_energies_in /= 27.21111
+broad /= 27.21111
+ome_light = np.linspace(emin,emax,nsteps)/27.21111
+
 elph_db = Dataset(os.path.join(elphpath, 'ndb.elph'), 'r')
 qpoints = elph_db['qpoints'][...].data
 elph_db.close()
 
-qtree = build_ktree(kpoints)
+qtree = build_ktree(qpoints)
 idx_mq = find_kpt(qtree,-qpoints)
 
 # we are assuming time reversal
@@ -60,12 +68,16 @@ two_ph_raman = compute_two_ph_raman_exc(ome_light,
                              exc_energies_in,
                              exc_energies,
                              exc_energies[idx_mq],
-                             ex_dip,
-                             g_0_q,
-                             g_0_q[idx_mq],
+                             exc_dipoles,
+                             exph_mat,
+                             exph_mat[idx_mq],
                              g_q_mq,
                              g_q_mq[idx_mq],
                              gamma=broad,
                              precision='s')
 
-
+tensor = np.sum(np.abs(two_ph_raman)**2,axis=(1,2,3,4,5,6))
+print(tensor)
+np.savetxt('data.txt',np.c_[ome_light,tensor])
+# (2, 18, 3, 12, 12, 3, 3)
+#print(np.abs(two_ph_raman).max())

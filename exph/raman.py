@@ -1013,7 +1013,6 @@ def test_compute_raman_twoph():
     return max_final < 1e-6
 
 
-from checkkkk import compute_two_ph_raman_exc_numpy_check
 def test_compute_two_ph_raman_exc():
 
     Nqpts = 5
@@ -1050,22 +1049,6 @@ def test_compute_two_ph_raman_exc():
                                       gamma=gamma,precision='d')
 
     result_flat = result.reshape(-1)
-    
-    xxx = compute_two_ph_raman_exc_numpy_check([ome_light],
-                                      ph_freq_q,
-                                      ph_freq_q,
-                                      ex_ene_0,
-                                      ex_ene_q,
-                                      ex_ene_q,
-                                      ex_dip,
-                                      g_0_q,
-                                      g_0_mq,
-                                      g_0_q.conj().transpose(0, 1, 3, 2),
-                                      g_0_mq.conj().transpose(0, 1, 3, 2),
-                                      gamma=gamma)
-
-    print(np.abs(result_flat-xxx.reshape(-1)).max())
-    return True
 #    ref_res = np.array(
         # [-111.2429773 - 37.0809924j, 0.0 + 250.0j, 100.6230589 - 33.5410196j])
 
