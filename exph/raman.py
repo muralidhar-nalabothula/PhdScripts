@@ -4,6 +4,7 @@ import numpy as np
 import math
 from scipy.spatial import KDTree
 from numba import njit, prange
+from yambopy.kpoints import build_ktree, find_kpt
 
 
 ###### // One phonon Raman ##############
@@ -583,12 +584,15 @@ def compute_Raman_twoph_iq(ome_light,
 #
 # 2ph raman with excitonic effects
 
-@njit(cache=True, nogil=True)
-def _compute_iq(iq, N_ome, nmode, npol, N_q, N_mq, ome_light_arr, ph_freq_q, ph_freq_mq,
-                ex_ene_0, ex_ene_q, ex_ene_mq, ex_dip, g_0_q, g_0_mq, g_q_mq, g_mq_q,
-                gamma_c_typed, scale_bz, scale_one, zero_val, dip_conj):
 
-    M_tensor_iq = np.zeros((N_ome, 3, nmode, nmode, npol, npol), dtype=ex_dip.dtype)
+@njit(cache=True, nogil=True)
+def _compute_iq(iq, N_ome, nmode, npol, N_q, N_mq, ome_light_arr, ph_freq_q,
+                ph_freq_mq, ex_ene_0, ex_ene_q, ex_ene_mq, ex_dip, g_0_q,
+                g_0_mq, g_q_mq, g_mq_q, gamma_c_typed, scale_bz, scale_one,
+                zero_val, dip_conj):
+
+    M_tensor_iq = np.zeros((N_ome, 3, nmode, nmode, npol, npol),
+                           dtype=ex_dip.dtype)
 
     B_0_q_T = np.zeros((nmode, npol, N_q), dtype=ex_dip.dtype)
     B_0_mq_T = np.zeros((nmode, npol, N_mq), dtype=ex_dip.dtype)
@@ -649,7 +653,8 @@ def _compute_iq(iq, N_ome, nmode, npol, N_q, N_mq, ome_light_arr, ph_freq_q, ph_
                     D5 = ome_light_typed - ex_ene_mq[iq, :] + O1 + gamma_c_typed
                     M2 = B2 @ (A2 / D5[None, :]).T
 
-                    M_tensor_iq[i_ome, 0, il, ilambda, :, :] = prefac * (M1 + M2)
+                    M_tensor_iq[i_ome, 0, il,
+                                ilambda, :, :] = prefac * (M1 + M2)
 
                 # ==========================================
                 # Process 1: Mixed (Absorb lambda, Emit l)
@@ -675,7 +680,8 @@ def _compute_iq(iq, N_ome, nmode, npol, N_q, N_mq, ome_light_arr, ph_freq_q, ph_
                     D5 = ome_light_typed - ex_ene_mq[iq, :] + O1 + gamma_c_typed
                     M2 = B2 @ (A2 / D5[None, :]).T
 
-                    M_tensor_iq[i_ome, 1, il, ilambda, :, :] = prefac * (M1 + M2)
+                    M_tensor_iq[i_ome, 1, il,
+                                ilambda, :, :] = prefac * (M1 + M2)
 
                 # ==========================================
                 # Process 2: Stokes (Two-Phonon Emit)
@@ -701,9 +707,11 @@ def _compute_iq(iq, N_ome, nmode, npol, N_q, N_mq, ome_light_arr, ph_freq_q, ph_
                     D5 = ome_light_typed - ex_ene_mq[iq, :] + O1 + gamma_c_typed
                     M2 = B2 @ (A2 / D5[None, :]).T
 
-                    M_tensor_iq[i_ome, 2, il, ilambda, :, :] = prefac * (M1 + M2)
+                    M_tensor_iq[i_ome, 2, il,
+                                ilambda, :, :] = prefac * (M1 + M2)
 
     return M_tensor_iq
+
 
 @njit(cache=True, nogil=True, parallel=True)
 def compute_two_ph_raman_exc_numba(ome_light_arr, ph_freq_q, ph_freq_mq,
@@ -747,7 +755,7 @@ def compute_two_ph_raman_exc_numba(ome_light_arr, ph_freq_q, ph_freq_mq,
     gamma_c_typed = tmp_c[0]
 
     tmp_f[0] = 1.0 / np.sqrt(2.0)
-    scale_bz = 1#tmp_f[0] # we add the prefactor outside
+    scale_bz = 1.0  #tmp_f[0] # we add the prefactor outside
 
     tmp_f[0] = 1.0
     scale_one = tmp_f[0]
@@ -756,28 +764,31 @@ def compute_two_ph_raman_exc_numba(ome_light_arr, ph_freq_q, ph_freq_mq,
     zero_val = tmp_f[0]
 
     for iq in prange(Nqpts):
-        M_tensor[:, iq, :, :, :, :, :] = _compute_iq(iq, N_ome, nmode, npol, N_q, N_mq,
-                                                     ome_light_arr, ph_freq_q, ph_freq_mq,
-                                                     ex_ene_0, ex_ene_q, ex_ene_mq, ex_dip,
-                                                     g_0_q, g_0_mq, g_q_mq, g_mq_q,
-                                                     gamma_c_typed, scale_bz, scale_one, zero_val, dip_conj)
+        M_tensor[:, iq, :, :, :, :, :] = _compute_iq(
+            iq, N_ome, nmode, npol, N_q, N_mq, ome_light_arr, ph_freq_q,
+            ph_freq_mq, ex_ene_0, ex_ene_q, ex_ene_mq, ex_dip, g_0_q, g_0_mq,
+            g_q_mq, g_mq_q, gamma_c_typed, scale_bz, scale_one, zero_val,
+            dip_conj)
 
     return M_tensor
 
 
 def compute_two_ph_raman_exc(ome_light,
+                             qpoints_crys,
                              ph_freq_q,
-                             ph_freq_mq,
                              ex_ene_0,
                              ex_ene_q,
-                             ex_ene_mq,
                              ex_dip,
                              g_0_q,
-                             g_0_mq,
                              g_q_mq,
-                             g_mq_q,
                              gamma=0.01,
                              precision='s'):
+    qtree = build_ktree(qpoints_crys)
+    idx_mq = find_kpt(qtree, -qpoints_crys)
+    ph_freq_mq = ph_freq_q[idx_mq]
+    ex_ene_mq = ex_ene_q[idx_mq]
+    g_0_mq = g_0_q[idx_mq]
+    g_mq_q = g_q_mq[idx_mq]
     is_scalar_ome = np.isscalar(ome_light) or np.ndim(ome_light) == 0
     ome_light_arr = np.atleast_1d(ome_light)
     prec = str(precision).strip().lower()
@@ -808,9 +819,29 @@ def compute_two_ph_raman_exc(ome_light,
                                               g_0_q_c, g_0_mq_c, g_q_mq_c,
                                               g_mq_q_c, gamma)
     #
+    # compute prefactors for stokes and anti-stokes to avoid double counting.
+    prefactor = np.where(idx_mq == np.arange(len(idx_mq), dtype=int), 1.0,
+                         1 / np.sqrt(2))
+    M_tensor[:, :, 0, ...] *= prefactor[None, :, None, None, None, None]
+    M_tensor[:, :, 2, ...] *= prefactor[None, :, None, None, None, None]
+    #
+    Nqpts, nmode = ph_freq_q_c.shape
+    raman_shift_freq = np.zeros((Nqpts, 3, nmode, nmode), dtype=f_type)
+    # Process 0: Anti-Stokes (+omega_mq_l + omega_q_lam)
+    raman_shift_freq[:, 0, :, :] = ph_freq_mq_c[:, :,
+                                                None] + ph_freq_q_c[:, None, :]
+    # Process 1: Mixed (-omega_q_l + omega_q_lam)
+    raman_shift_freq[:,
+                     1, :, :] = -ph_freq_q_c[:, :, None] + ph_freq_q_c[:,
+                                                                       None, :]
+    # Process 2: Stokes (-omega_q_l - omega_mq_lam)
+    raman_shift_freq[:,
+                     2, :, :] = -ph_freq_q_c[:, :, None] - ph_freq_mq_c[:,
+                                                                        None, :]
+
     if is_scalar_ome:
-        return M_tensor[0]
-    return M_tensor
+        return raman_shift_freq, M_tensor[0]
+    return raman_shift_freq, M_tensor
 
 
 ######################## TESTING ##############################
@@ -1014,49 +1045,125 @@ def test_compute_raman_twoph():
 
 
 def test_compute_two_ph_raman_exc():
+    qpoints_crys = np.array([[0.0, 0.0, 0.0], [0.5, 0.5, 0.5]])
+    # Define q-points in crystal coordinates
 
-    Nqpts = 5
-    nmode = 6
+    Nqpts = len(qpoints_crys)
+    # Number of q-points, matches qpoints_crys length
+
+    nmode = 2
+    # Number of phonon modes
+
     npol = 3
-    N_exc = 2
-    N_exc0 = 7
+    # Number of polarizations
 
-    ome_light = 2.0
+    N_exc0 = 3
+    # Number of exciton states at q=0
+
+    N_exc_q = 2
+    # Number of exciton states at q
+
+    ome_light = 2.5
+    # Incident light frequency
+
     gamma = 0.1
+    # Broadening factor
 
-    ph_freq_q = np.random.rand(Nqpts,nmode)#np.array([[0.1]]).astype(np.single)
+    ph_freq_q = np.linspace(0.01, 0.05, Nqpts * nmode).reshape(Nqpts, nmode)
+    # Phonon frequencies at wavevector q
 
-    ex_ene_0 = np.random.rand(N_exc0)#np.array([2.0]).astype(np.single)
-    ex_ene_q = np.random.rand(Nqpts,N_exc) #np.array([[2.0]]).astype(np.single)
+    ex_ene_0 = np.linspace(1.5, 2.5, N_exc0)
+    # Exciton energies at q=0
 
-    ex_dip = np.random.rand(npol,N_exc0) + 1j*np.random.rand(npol,N_exc0)
-    #np.array([[1.0 + 0.0j]]).astype(np.csingle)
+    ex_ene_q = np.linspace(1.6, 2.6, Nqpts * N_exc_q).reshape(Nqpts, N_exc_q)
+    # Exciton energies at wavevector q
 
-    g_0_q = np.random.rand(Nqpts,nmode,N_exc0,N_exc) + 1j*np.random.rand(Nqpts,nmode,N_exc0,N_exc) #np.array([[[[0.5 + 0.0j]]]]).astype(np.csingle)
-    g_0_mq = np.random.rand(Nqpts,nmode,N_exc0,N_exc) + 1j*np.random.rand(Nqpts,nmode,N_exc0,N_exc) #np.array([[[[0.5 + 0.0j]]]]).astype(np.csingle)
+    ex_dip_real = np.linspace(0.1, 1.0, npol * N_exc0).reshape(npol, N_exc0)
+    ex_dip_imag = np.linspace(-0.5, 0.5, npol * N_exc0).reshape(npol, N_exc0)
+    ex_dip = ex_dip_real + 1j * ex_dip_imag
+    # Exciton optical dipole matrix elements
 
-    result = compute_two_ph_raman_exc(ome_light,
-                                      ph_freq_q,
-                                      ph_freq_q,
-                                      ex_ene_0,
-                                      ex_ene_q,
-                                      ex_ene_q,
-                                      ex_dip,
-                                      g_0_q,
-                                      g_0_mq,
-                                      g_0_q.conj().transpose(0, 1, 3, 2),
-                                      g_0_mq.conj().transpose(0, 1, 3, 2),
-                                      gamma=gamma,precision='d')
+    g_0_q_real = np.linspace(0.01, 0.1,
+                             Nqpts * nmode * N_exc0 * N_exc_q).reshape(
+                                 Nqpts, nmode, N_exc0, N_exc_q)
+    g_0_q_imag = np.linspace(-0.05, 0.05,
+                             Nqpts * nmode * N_exc0 * N_exc_q).reshape(
+                                 Nqpts, nmode, N_exc0, N_exc_q)
+    g_0_q = g_0_q_real + 1j * g_0_q_imag
+    # Exciton-phonon coupling from q=0 to q
 
-    result_flat = result.reshape(-1)
-#    ref_res = np.array(
-        # [-111.2429773 - 37.0809924j, 0.0 + 250.0j, 100.6230589 - 33.5410196j])
+    g_q_mq_real = np.linspace(0.015, 0.15,
+                              Nqpts * nmode * N_exc_q * N_exc0).reshape(
+                                  Nqpts, nmode, N_exc_q, N_exc0)
+    g_q_mq_imag = np.linspace(-0.02, 0.08,
+                              Nqpts * nmode * N_exc_q * N_exc0).reshape(
+                                  Nqpts, nmode, N_exc_q, N_exc0)
+    g_q_mq = g_q_mq_real + 1j * g_q_mq_imag
+    # Exciton-phonon coupling from q to -q
 
-    # return np.abs(result_flat - ref_res).max() < 1e-5
+    _, result = compute_two_ph_raman_exc(ome_light,
+                                         qpoints_crys,
+                                         ph_freq_q,
+                                         ex_ene_0,
+                                         ex_ene_q,
+                                         ex_dip,
+                                         g_0_q,
+                                         g_q_mq,
+                                         gamma=gamma,
+                                         precision='d')
+
+    #ref = result[:,:,0,1,:,:].reshape(-1)
+    ref = np.array([
+        -0.29916172 - 5.89001823e-02j, -0.37578530 + 3.45437057e-01j,
+        -0.45240889 + 7.49774297e-01j, -0.22735277 - 3.93005322e-01j,
+        -0.75553781 - 8.24170594e-02j, -1.28372285 + 2.28171203e-01j,
+        -0.15554382 - 7.27110461e-01j, -1.13529032 - 5.10271176e-01j,
+        -2.11503682 - 2.93431891e-01j, -0.14591269 - 2.17357012e-01j,
+        -0.46073524 - 2.13548532e-02j, -0.77555779 + 1.74647305e-01j,
+        0.08904460 - 3.85049455e-01j, -0.45134335 - 5.30109977e-01j,
+        -0.99173130 - 6.75170498e-01j, 0.32400188 - 5.52741899e-01j,
+        -0.44195147 - 1.03886510e+00j, -1.20790481 - 1.52498830e+00j,
+        -0.18332960 - 6.60575291e-02j, -0.32485200 + 1.93673982e-01j,
+        -0.46637440 + 4.53405494e-01j, -0.11870946 - 2.69229427e-01j,
+        -0.54999018 - 1.53565493e-01j, -0.98127090 - 3.79015586e-02j,
+        -0.05408931 - 4.72401325e-01j, -0.77512836 - 5.00804968e-01j,
+        -1.49616740 - 5.29208611e-01j, -4.33882694 - 1.10430477e+00j,
+        -5.54010435 + 4.72331254e+00j, -6.74138176 + 1.05509299e+01j,
+        -3.19817579 - 5.94453050e+00j, -10.89498276 - 1.33583264e+00j,
+        -18.59178972 + 3.27286523e+00j, -2.05752465 - 1.07847562e+01j,
+        -16.24986116 - 7.39497781e+00j, -30.44219768 - 4.00519941e+00j,
+        -1.60739485 + 3.39431231e+00j, 3.06923746 + 5.72931115e+00j,
+        7.74586976 + 8.06430999e+00j, -5.37419667 + 1.70210282e+00j,
+        -3.16163037 + 9.22924730e+00j, -0.94906406 + 1.67563918e+01j,
+        -9.14099850 + 9.89333717e-03j, -9.39249819 + 1.27291834e+01j,
+        -9.64399789 + 2.54484735e+01j, 1.34018927 + 3.20160755e-01j,
+        2.20693176 - 1.68409220e+00j, 3.07367425 - 3.68834516e+00j,
+        1.02077464 + 1.79351765e+00j, 4.09984780 + 6.91269283e-01j,
+        7.17892097 - 4.10979080e-01j, 0.70136002 + 3.26687454e+00j,
+        5.99276385 + 3.06663077e+00j, 11.28416768 + 2.86638700e+00j
+    ],
+                   dtype=np.complex128)
+
+    if np.abs(result[:, :, 0, 1, :, :].reshape(-1) - ref).max() > 1e-6:
+        return False
+    #
+    expected_shape = (Nqpts, 3, nmode, nmode, npol, npol)
+    # The expected shape is (Nqpts, processes, modes, modes, pol, pol) for scalar ome_light
+
+    assert result.shape == expected_shape, f"Shape mismatch: {result.shape} != {expected_shape}"
+    # Validate output shape against expected structure
+
+    assert np.all(np.isfinite(result)), "Result contains NaN or Inf values"
+    # Validate output does not contain infinite or undefined values
+
+    assert np.any(result), "Result tensor is completely zero"
+    # Validate that computational loop processed properly to yield non-zero numbers
+
+    return True
 
 
 if __name__ == "__main__":
     print(test_compute_Raman_oneph_exc())
     print(test_compute_Raman_oneph_ip())
     print(test_compute_raman_twoph())
-    test_compute_two_ph_raman_exc()
+    print(test_compute_two_ph_raman_exc())
