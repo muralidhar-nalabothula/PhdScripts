@@ -70,8 +70,8 @@ freq_ram, two_ph_raman = compute_two_ph_raman_exc(ome_light,
 #
 #Intensity_tensor = np.abs(M_tensor)**2
 
-n_q = bose(ph_energies, T_ph)
-n_mq = bose(ph_energies, T_ph)
+n_q = np.abs(bose(ph_energies, T_ph))
+n_mq = np.abs(bose(ph_energies, T_ph))
 #
 bose_0 = np.sqrt(n_mq[:, :, None] * n_q[:, None, :])
 two_ph_raman[:, :, 0, ...] *= bose_0[None, :, :, :, None, None]
