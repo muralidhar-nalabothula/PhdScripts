@@ -4,7 +4,7 @@ import numpy as np
 import math
 from scipy.spatial import KDTree
 from numba import njit, prange
-from yambopy.kpoints import build_ktree, find_kpt
+from kpts import build_ktree, find_kpt
 
 
 ###### // One phonon Raman ##############
@@ -783,6 +783,9 @@ def compute_two_ph_raman_exc(ome_light,
                              g_q_mq,
                              gamma=0.01,
                              precision='s'):
+    #// gamma nad ome_light are in eV
+    gamma = gamma / 27.2111
+    ome_light = ome_light / 27.21111
     qtree = build_ktree(qpoints_crys)
     idx_mq = find_kpt(qtree, -qpoints_crys)
     ph_freq_mq = ph_freq_q[idx_mq]

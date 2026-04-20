@@ -8,8 +8,10 @@ from time import time
 from exe_dips import exe_dipoles
 from exph_precision import *
 from kpts import find_kpatch
+from util import bose
 import sys
 import yaml
+from raman import compute_two_ph_raman_exc
 """
 # Example input file
 calc_folder: "../../"
@@ -19,6 +21,7 @@ elph_file: "elph/ndb.elph"
 Dmat_file: "elph/ndb.Dmats"
 nstates: 10
 lumin: true
+two_ph_raman: true
 Exph: false
 Temp: 20
 ome_range: [1.35, 1.5, 40000]
@@ -46,6 +49,7 @@ elph_file = calc_folder + params.get("elph_file", "ndb.elph")
 Dmat_file = calc_folder + params.get("Dmat_file", "ndb.Dmats")
 nstates = params.get("nstates", 1)
 lumin = params.get("lumin", True)
+two_ph_raman = params.get("two_ph_raman", True)
 Exph = params.get("Exph", True)
 Temp = params.get("Temp", 20)
 ome_range = params.get("ome_range", [0.1, 1.0, 10])
@@ -64,6 +68,7 @@ print(f"elph_file   : {elph_file}")
 print(f"Dmat_file   : {Dmat_file}")
 print(f"nstates     : {nstates}")
 print(f"lumin       : {lumin}")
+print(f"two_ph_raman: {two_ph_raman}")
 print(f"Exph        : {Exph}")
 print(f"Temp        : {Temp}")
 print(f"ome_range   : {ome_range}")
@@ -187,6 +192,7 @@ np.save('Ex-dipole', ex_dip)
 ## close el-ph file
 elph_file.close()
 ## compute Lumenscence
+ome_range = np.linspace(ome_range[0], ome_range[1], num=ome_range[2])
 if lumin:
     if len(kcentre) != 0:
         kcen = np.array(kcentre[0])
@@ -209,7 +215,6 @@ if lumin:
     else:
         qinclude_idx = np.arange(len(qpts), dtype=int)
     #
-    ome_range = np.linspace(ome_range[0], ome_range[1], num=ome_range[2])
     exe_ene = BS_eigs[kmap[qidx_in_kpts[qinclude_idx], 0], :]
     lumen_inten = []
 
@@ -228,6 +233,55 @@ if lumin:
     np.savetxt('luminescence_intensities.dat', np.c_[ome_range,
                                                      np.array(lumen_inten)])
     np.save('Intensties_lumen', np.array(lumen_inten))
+
+if two_ph_raman:
+    print("Computing two phonon raman")
+    exc_energies = BS_eigs[kmap[qidx_in_kpts, 0], :]
+    ph_energies = ph_freq
+    exc_energies_in = BS_eigs[0]
+    # we are assuming time reversal
+    # < 0 | dv-q| q> = (<q| dv^dagger_-q| 0>)^*
+    g_q_mq = ex_ph.transpose(0, 1, 3, 2).conj()
+    # Note here we are messing up with phonon phase,
+    # but when computing Raman intensities by sum_modes |R|^2
+    exc_dipoles = ex_dip.conj()  # we need for photon absorption
+
+    freq_ram, two_ph_raman = compute_two_ph_raman_exc(ome_range,
+                                                      qpts,
+                                                      ph_energies,
+                                                      exc_energies_in,
+                                                      exc_energies,
+                                                      exc_dipoles,
+                                                      ex_ph,
+                                                      g_q_mq,
+                                                      gamma=broading,
+                                                      precision='s')
+
+    two_ph_raman *= (1.0 / len(kpts))
+    # Intensity_tensor = np.abs(M_tensor)**2
+
+    n_q = np.abs(bose(ph_energies, Temp))
+    n_mq = np.abs(bose(ph_energies, Temp))
+
+    bose_0 = np.sqrt(n_mq[:, :, None] * n_q[:, None, :])
+    two_ph_raman[:, :, 0, ...] *= bose_0[None, :, :, :, None, None]
+
+    bose_1 = np.sqrt((n_q[:, :, None] + 1.0) * n_q[:, None, :])
+    two_ph_raman[:, :, 1, ...] *= bose_1[None, :, :, :, None, None]
+
+    bose_2 = np.sqrt((n_q[:, :, None] + 1.0) * (n_mq[:, None, :] + 1.0))
+    two_ph_raman[:, :, 2, ...] *= bose_2[None, :, :, :, None, None]
+
+    np.savez_compressed('raman_results.npz',
+                        two_ph_raman=two_ph_raman,
+                        freq_ram=freq_ram,
+                        omega_light=ome_range)
+    tensor = np.sum(np.abs(two_ph_raman)**2, axis=(1, 2, 3, 4, 5, 6))
+    np.savetxt('data_phd.txt', np.c_[ome_range, tensor])
+
+    # loaded_data = np.load('raman_results.npz')
+    # two_ph_raman = loaded_data['two_ph_raman']
+    # freq_ram = loaded_data['freq_ram']
 
 print('** Timings **')
 print(f'ELPH IO   : {time_elph_io:.4f} s')
