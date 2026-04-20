@@ -276,8 +276,8 @@ if two_ph_raman:
                         two_ph_raman=two_ph_raman,
                         freq_ram=freq_ram,
                         omega_light=ome_range)
-    tensor = np.sum(np.abs(two_ph_raman)**2, axis=(1, 2, 3, 4, 5, 6))
-    np.savetxt('data_phd.txt', np.c_[ome_range, tensor])
+    #tensor = np.sum(np.abs(two_ph_raman)**2, axis=(1, 2, 3, 4, 5, 6))
+    #np.savetxt('data_phd.txt', np.c_[ome_range, tensor])
 
     # loaded_data = np.load('raman_results.npz')
     # two_ph_raman = loaded_data['two_ph_raman']
