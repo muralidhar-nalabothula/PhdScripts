@@ -90,7 +90,7 @@ def get_dipoles(bands_range, nval_bnds, dip_file='ndb.dipoles', var='DIP_iR'):
     return dipoles.transpose(0, 2, 1, 3).astype(numpy_Cmplx)  # (k,c,v,pol)
 
 
-def get_ph_data(bands_range, elph_file, dmat_file='ndb.Dmats'):
+def get_ph_data(bands_range, elph_file):
     ## first get convention
     conv = elph_file['convention'][...].data
     convlist = [iconv.decode('utf-8') for iconv in conv]
@@ -120,16 +120,8 @@ def get_ph_data(bands_range, elph_file, dmat_file='ndb.Dmats'):
     start_bnd_idx = min_bnd - min(elph_cal_bands)
     end_bnd = start_bnd_idx + nbnds
     #print(start_bnd_idx, end_bnd)
-    Dmat_data = Dataset(dmat_file, 'r')
-    Dmats = Dmat_data['Dmats'][:, :, 0, start_bnd_idx:end_bnd,
-                               start_bnd_idx:end_bnd, :].data
-    Dmats = Dmats[...,
-                  0] + 1j * Dmats[..., 1]  # # nsym_ph, nkpts, Rk_band, k_band,
-    Dmat_data.close()
-    assert (nbnds == Dmats.shape[-1])  ## sanity check
-    return ph_sym, time_rev, kpts, kmap, qpts, qmap, ph_freq * 0.5, stard_conv, [
-        start_bnd_idx, end_bnd
-    ], Dmats.astype(numpy_Cmplx)
+    return kpts, kmap, qpts, qmap, ph_freq * 0.5, stard_conv,\
+            [start_bnd_idx, end_bnd]
 
 
 def get_elph_data_iq(iq, elph_bands_range, stard_conv, ph_freq, ktree, kpts,

@@ -8,17 +8,17 @@ from time import time
 from exe_dips import exe_dipoles
 from exph_precision import *
 from kpts import find_kpatch
-from util import bose
 import sys
 import yaml
 from raman import compute_two_ph_raman_exc
+from yambopy.dbs.wfdb import YamboWFDB
+from yambopy.tools.funcs import bose
 """
 # Example input file
 calc_folder: "../../"
 SAVE_dir: "gw_bse/SAVE"
 BSE_dir: "gw_bse/GW_BSE"
 elph_file: "elph/ndb.elph"
-Dmat_file: "elph/ndb.Dmats"
 nstates: 10
 lumin: true
 two_ph_raman: true
@@ -46,7 +46,6 @@ calc_folder = params.get("calc_folder", ".")
 SAVE_dir = calc_folder + params.get("SAVE_dir", "SAVE")
 BSE_dir = calc_folder + params.get("BSE_dir", "SAVE")
 elph_file = calc_folder + params.get("elph_file", "ndb.elph")
-Dmat_file = calc_folder + params.get("Dmat_file", "ndb.Dmats")
 nstates = params.get("nstates", 1)
 lumin = params.get("lumin", True)
 two_ph_raman = params.get("two_ph_raman", True)
@@ -65,7 +64,6 @@ print(f"calc_folder : {calc_folder}")
 print(f"SAVE_dir    : {SAVE_dir}")
 print(f"BSE_dir     : {BSE_dir}")
 print(f"elph_file   : {elph_file}")
-print(f"Dmat_file   : {Dmat_file}")
 print(f"nstates     : {nstates}")
 print(f"lumin       : {lumin}")
 print(f"two_ph_raman: {two_ph_raman}")
@@ -91,6 +89,12 @@ for iq in tqdm(range(nibz), desc="Loading Ex-wfcs "):
     BS_eigs.append(tmp_eigs)
     BS_wfcs.append(tmp_wfcs)
 
+wfcs = YamboWFDB(filename='ns.wf',
+                 save=SAVE_dir,
+                 bands_range=[min(bs_bands) - 1,
+                              max(bs_bands)])
+Dmats = wfcs.Dmat()[:, :, 0, ...]
+
 bs_bands = np.array(bs_bands)
 BS_eigs = np.array(BS_eigs)
 BS_wfcs = np.array(BS_wfcs)
@@ -100,8 +104,8 @@ np.save('BS_energies', BS_eigs)
 ### get elph_data
 print('Reading Phonon Data')
 elph_file = Dataset(elph_file, 'r')
-ph_sym, ph_time_rev, kpts, kmap, qpts, qmap, ph_freq, stard_conv, \
-    elph_bnds_range, Dmats = get_ph_data(bs_bands, elph_file, Dmat_file)
+kpts, kmap, qpts, qmap, ph_freq, stard_conv, \
+    elph_bnds_range = get_ph_data(bs_bands, elph_file)
 
 ### Read dipoles
 nvalance_bnds = BS_wfcs.shape[-1]
@@ -114,11 +118,6 @@ ele_dips = get_dipoles(bs_bands,
 ### build a kdtree for kpoints
 print('Building kD-tree for kpoints')
 kpt_tree = build_ktree(kpts)
-
-## check if phonon and electron symmetries are SAme.abs
-## this is to make sure that we can make use of Dmats
-assert (ele_time_rev == ph_time_rev)
-assert (np.abs(symm_mats - ph_sym).max() < 10**-5)
 
 ### find the indices of qpoints in kpts
 qidx_in_kpts = find_kindx(qpts, kpt_tree)
@@ -161,7 +160,7 @@ if Exph:
         ik_ibz, isym = kmap[qidx_in_kpts[
             i]]  ## get the ibZ kpt and symmetry matrix for this q/k point
         is_sym_time_rev = False
-        if (isym >= ph_sym.shape[0] / (int(ele_time_rev) + 1)):
+        if (isym >= symm_mats.shape[0] / (int(ele_time_rev) + 1)):
             is_sym_time_rev = True
         wfc_tmp = rotate_exc_wfc(BS_wfcs[ik_ibz], sym_red[isym], kpts, \
             kpt_tree, kpts_ibz[ik_ibz], Dmats[isym], is_sym_time_rev)
@@ -260,8 +259,8 @@ if two_ph_raman:
     two_ph_raman *= (1.0 / len(kpts))
     # Intensity_tensor = np.abs(M_tensor)**2
 
-    n_q = np.abs(bose(ph_energies, Temp))
-    n_mq = np.abs(bose(ph_energies, Temp))
+    n_q = np.abs(bose(ph_energies * 27.21111, Temp))
+    n_mq = np.abs(bose(ph_energies * 27.21111, Temp))
 
     bose_0 = np.sqrt(n_mq[:, :, None] * n_q[:, None, :])
     two_ph_raman[:, :, 0, ...] *= bose_0[None, :, :, :, None, None]
