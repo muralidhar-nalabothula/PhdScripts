@@ -14,6 +14,7 @@ from raman import compute_two_ph_raman_exc
 from yambopy.dbs.wfdb import YamboWFDB
 from yambopy.tools.funcs import bose
 from lifetimes_exph import compute_exph_lifetimes
+import os
 """
 # Example input file
 calc_folder: "../../"
@@ -93,11 +94,17 @@ for iq in tqdm(range(nibz), desc="Loading Ex-wfcs "):
     BS_eigs.append(tmp_eigs)
     BS_wfcs.append(tmp_wfcs)
 
-wfcs = YamboWFDB(filename='ns.wf',
-                 save=SAVE_dir,
-                 bands_range=[min(bs_bands) - 1,
-                              max(bs_bands)])
-Dmats = wfcs.Dmat()[:, :, 0, ...]
+if os.path.exists("Dmats.npy"):
+    print("Dmats file found. Loading...")
+    Dmats = np.load("Dmats.npy")
+else:
+    wfcs = YamboWFDB(filename='ns.wf',
+                     save=SAVE_dir,
+                     bands_range=[min(bs_bands) - 1,
+                                  max(bs_bands)])
+    Dmats = wfcs.Dmat()[:, :, 0, ...]
+    np.save("Dmats", Dmats)
+    print("Computed and saved to Dmats.npy")
 
 bs_bands = np.array(bs_bands)
 BS_eigs = np.array(BS_eigs)
