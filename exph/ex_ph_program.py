@@ -57,7 +57,7 @@ ome_range = params.get("ome_range", [0.1, 1.0, 10])
 broading = params.get("broading", 0.004)
 kcentre = params.get("kcentre", [])
 npol = params.get("npol", 3)
-exph_lifetimes = params.get("exph_lifetimes",False)
+exph_lifetimes = params.get("exph_lifetimes", False)
 #
 ## read the lattice data
 print('*' * 30, ' Program started ', '*' * 30)
@@ -192,8 +192,6 @@ else:
     ex_dip = np.load('Ex-dipole.npy')
     time_exph_io = time_exph_io + time() - tik_exph
 
-
-
 ## close el-ph file
 elph_file.close()
 ## compute Lumenscence
@@ -242,9 +240,13 @@ if lumin:
 if exph_lifetimes:
     print("Computing exph lifetimes...")
     exe_ene = BS_eigs[kmap[qidx_in_kpts, 0], :]
-    exph_lt = compute_exph_lifetimes(ph_freq, exe_ene, ex_ph, temp=Temp, broading=broading)
+    exph_lt = compute_exph_lifetimes(ph_freq,
+                                     exe_ene,
+                                     ex_ph,
+                                     temp=Temp,
+                                     broading=broading)
     print("Exciton phonon lifetimes in mev:")
-    print(exph_lt*27.2111*1000)
+    print(exph_lt * 27.2111 * 1000)
 
 if two_ph_raman:
     print("Computing two phonon raman")

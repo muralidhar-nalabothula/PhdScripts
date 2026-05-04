@@ -3,6 +3,7 @@ from numba import njit, prange
 import os
 from exph_precision import *
 
+
 # Y. chan  et.al  Nano Lett. 2023, 23, 3971−3977
 @njit(cache=True, nogil=True, parallel=True)
 def compute_exph_lifetimes(ph_freq, ex_ene, ex_ph, temp=20, broading=0.002):
@@ -35,13 +36,16 @@ def compute_exph_lifetimes(ph_freq, ex_ene, ex_ph, temp=20, broading=0.002):
                     # Modulus squared of the exciton-phonon coupling matrix element
                     diff_emission = E_initial - E_final - omega
                     # Energy difference for the phonon emission term
-                    delta_em = 2.0 * broading_Ha / (diff_emission**2 + broading_Ha**2)
+                    delta_em = 2.0 * broading_Ha / (diff_emission**2 +
+                                                    broading_Ha**2)
                     # Lorentzian approximation of the delta function for emission (includes the 2*pi prefactor)
                     diff_absorption = E_initial - E_final + omega
                     # Energy difference for the phonon absorption term
-                    delta_abs = 2.0 * broading_Ha / (diff_absorption**2 + broading_Ha**2)
+                    delta_abs = 2.0 * broading_Ha / (diff_absorption**2 +
+                                                     broading_Ha**2)
                     # Lorentzian approximation of the delta function for absorption (includes the 2*pi prefactor)
-                    Gamma_all[iq, n] += g2 * ((N_q + 1.0) * delta_em + N_q * delta_abs)
+                    Gamma_all[iq, n] += g2 * (
+                        (N_q + 1.0) * delta_em + N_q * delta_abs)
                     # Accumulate the rate for this specific q-point and initial state n
     Gamma = np.zeros(nbnd_i, dtype=numpy_float)
     # Initialize the final scattering rate array for all initial states
@@ -49,6 +53,6 @@ def compute_exph_lifetimes(ph_freq, ex_ene, ex_ph, temp=20, broading=0.002):
         for n in range(nbnd_i):
             Gamma[n] += Gamma_all[iq, n]
             # Sum the contributions from all q-points
-            
+
     return Gamma / Nqpts
     # Returns both the scattering rates (in atomic units) and the relaxation times
