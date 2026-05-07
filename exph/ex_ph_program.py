@@ -13,7 +13,7 @@ import yaml
 from raman import compute_two_ph_raman_exc
 from yambopy.dbs.wfdb import YamboWFDB
 from yambopy.tools.funcs import bose
-from lifetimes_exph import compute_exph_lifetimes
+from lifetimes_exph import interpolate_and_compute_lifetimes
 import os
 """
 # Example input file
@@ -33,6 +33,7 @@ kcentre:
   - 0.0897598
 npol: 3
 exph_lifetimes : False
+interpolate_grid_lifetimes : []
 """
 # --- Read input file ---
 if len(sys.argv) < 2:
@@ -59,6 +60,7 @@ broading = params.get("broading", 0.004)
 kcentre = params.get("kcentre", [])
 npol = params.get("npol", 3)
 exph_lifetimes = params.get("exph_lifetimes", False)
+interpolate_grid_lifetimes = params.get("interpolate_grid_lifetimes", [])
 #
 ## read the lattice data
 print('*' * 30, ' Program started ', '*' * 30)
@@ -78,6 +80,7 @@ print(f"broading    : {broading}")
 print(f"kcentre     : {kcentre}")
 print(f"npol        : {npol}")
 print(f"exph_lifetimes: {exph_lifetimes}")
+print(f"interpolate_grid_lifetimes: {interpolate_grid_lifetimes}")
 print("============================\n")
 #
 print('Reading Lattice data')
@@ -247,11 +250,21 @@ if lumin:
 if exph_lifetimes:
     print("Computing exph lifetimes...")
     exe_ene = BS_eigs[kmap[qidx_in_kpts, 0], :]
-    exph_lt = compute_exph_lifetimes(ph_freq,
-                                     exe_ene,
-                                     ex_ph,
-                                     temp=Temp,
-                                     broading=broading)
+    if len(interpolate_grid_lifetimes) == 0:
+        interpolate_grid_lifetimes = None
+    else:
+        assert len(interpolate_grid_lifetimes) == 3, "Wrong grid given"
+        if np.sum(interpolate_grid_lifetimes) < 3:
+            interpolate_grid_lifetimes = None
+
+    exph_lt = interpolate_and_compute_lifetimes(ph_freq,
+                                                exe_ene,
+                                                ex_ph,
+                                                lat_vecs,
+                                                qpts,
+                                                interpolate_grid_lifetimes,
+                                                temp=Temp,
+                                                broading=broading)
     print("Exciton phonon lifetimes in mev:")
     print(exph_lt * 27.2111 * 1000)
 
