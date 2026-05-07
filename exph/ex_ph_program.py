@@ -279,7 +279,12 @@ if two_ph_raman:
     g_q_mq = ex_ph.transpose(0, 1, 3, 2).conj()
     # Note here we are messing up with phonon phase,
     # but when computing Raman intensities by sum_modes |R|^2
-    exc_dipoles = ex_dip.conj()  # we need for photon absorption
+    ele_dips_raman = get_dipoles(bs_bands,
+                                 nvalance_bnds,
+                                 dip_file=dipole_file,
+                                 var='DIP_v')
+    exc_dipoles = exe_dipoles(ele_dips_raman, BS_wfcs[0], kmap, symm_mats,
+                              ele_time_rev).conj()
 
     freq_ram, two_ph_raman = compute_two_ph_raman_exc(ome_range,
                                                       qpts,
