@@ -4,6 +4,7 @@ import os
 from exph_precision import *
 import itertools
 from scipy.interpolate import LinearNDInterpolator
+from tqdm import tqdm
 
 
 # H.Y Chen et al PhysRevLett.125.107401
@@ -126,7 +127,7 @@ def interpolate_and_compute_lifetimes(ph_freq_c,
     print(
         f"Interpolating couplings and computing lifetimes in batches of {batch_size}..."
     )
-    for i in range(0, total_qpts, batch_size):
+    for i in tqdm(range(0, total_qpts, batch_size), desc="Processing Batches"):
         q_batch = q_fine_cart[i:i + batch_size]
         ph_batch = ph_freq_fine[i:i + batch_size]
         ex_batch = ex_ene_fine[i:i + batch_size]
