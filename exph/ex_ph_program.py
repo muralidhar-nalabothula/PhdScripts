@@ -264,7 +264,8 @@ if exph_lifetimes:
                                                 qpts,
                                                 interpolate_grid_lifetimes,
                                                 temp=Temp,
-                                                broading=broading)
+                                                broading=broading,
+                                                batch_size=1024)
     print("Exciton phonon lifetimes in mev:")
     print(exph_lt * 27.2111 * 1000)
 
