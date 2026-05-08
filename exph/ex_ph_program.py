@@ -22,6 +22,7 @@ SAVE_dir: "gw_bse/SAVE"
 BSE_dir: "gw_bse/GW_BSE"
 elph_file: "elph/ndb.elph"
 nstates: 10
+nstates_gamma " -1 # < 0, implies same as nstates
 lumin: true
 two_ph_raman: true
 Exph: false
@@ -51,6 +52,7 @@ SAVE_dir = calc_folder + params.get("SAVE_dir", "SAVE")
 BSE_dir = calc_folder + params.get("BSE_dir", "SAVE")
 elph_file = calc_folder + params.get("elph_file", "ndb.elph")
 nstates = params.get("nstates", 1)
+nstates_gamma = params.get("nstates_gamma", -1)
 lumin = params.get("lumin", True)
 two_ph_raman = params.get("two_ph_raman", True)
 Exph = params.get("Exph", True)
@@ -65,12 +67,15 @@ interpolate_grid_lifetimes = params.get("interpolate_grid_lifetimes", [])
 ## read the lattice data
 print('*' * 30, ' Program started ', '*' * 30)
 #
+if nstates_gamma < 1:
+    nstates_gamma = nstates
 print("\n===== Input Parameters =====")
 print(f"calc_folder : {calc_folder}")
 print(f"SAVE_dir    : {SAVE_dir}")
 print(f"BSE_dir     : {BSE_dir}")
 print(f"elph_file   : {elph_file}")
 print(f"nstates     : {nstates}")
+print(f"nstates_gamma: {nstates_gamma}")
 print(f"lumin       : {lumin}")
 print(f"two_ph_raman: {two_ph_raman}")
 print(f"Exph        : {Exph}")
@@ -91,11 +96,21 @@ bs_bands = []  ## bands that are involved in BSE
 BS_eigs = []
 BS_wfcs = []
 
+if nstates != nstates_gamma and (lumin or exph_lifetimes):
+    print(
+        "For lifetimes and luminescence, nstates must be equal to nstates_gamma"
+    )
+    nstates_gamma = nstates
 ## read exciton eigen vectors
 for iq in tqdm(range(nibz), desc="Loading Ex-wfcs "):
     bs_bands, tmp_eigs, tmp_wfcs = read_bse_eig(BSE_dir, iq + 1, nstates)
     BS_eigs.append(tmp_eigs)
     BS_wfcs.append(tmp_wfcs)
+
+Gamma_energies = BS_eigs[0].copy()
+Gamma_wfcs = BS_wfcs[0].copy()
+if nstates != nstates_gamma:
+    _, Gamma_energies, Gamma_wfcs = read_bse_eig(BSE_dir, 1, nstates_gamma)
 
 if os.path.exists("Dmats.npy"):
     print("Dmats file found. Loading...")
@@ -181,7 +196,7 @@ if Exph:
         ## compute ex-ph matrix
         time_ex_rot = time_ex_rot + time() - tik
         tik = time()
-        ex_ph_tmp = ex_ph_mat(wfc_tmp, BS_wfcs[0], eph_mat_iq, kpts[0],
+        ex_ph_tmp = ex_ph_mat(wfc_tmp, Gamma_wfcs, eph_mat_iq, kpts[0],
                               kpts[qidx_in_kpts[i]], kpts, kpt_tree)
         ex_ph.append(ex_ph_tmp)
         time_exph = time_exph + time() - tik
@@ -193,7 +208,7 @@ if Exph:
     np.save('Ex-ph', ex_ph)
     time_exph_io = time_exph_io + time() - tik_exph
     print('Computing Exciton-photon matrix elements')
-    ex_dip = exe_dipoles(ele_dips, BS_wfcs[0], kmap, symm_mats, ele_time_rev)
+    ex_dip = exe_dipoles(ele_dips, Gamma_wfcs, kmap, symm_mats, ele_time_rev)
     np.save('Ex-dipole', ex_dip)
 else:
     print('Loading exciton phonon/photon matrix elements')
@@ -273,7 +288,7 @@ if two_ph_raman:
     print("Computing two phonon raman")
     exc_energies = BS_eigs[kmap[qidx_in_kpts, 0], :]
     ph_energies = ph_freq
-    exc_energies_in = BS_eigs[0]
+    exc_energies_in = Gamma_energies
     # we are assuming time reversal
     # < 0 | dv-q| q> = (<q| dv^dagger_-q| 0>)^*
     g_q_mq = ex_ph.transpose(0, 1, 3, 2).conj()
@@ -283,7 +298,7 @@ if two_ph_raman:
                                  nvalance_bnds,
                                  dip_file=dipole_file,
                                  var='DIP_v')
-    exc_dipoles = exe_dipoles(ele_dips_raman, BS_wfcs[0], kmap, symm_mats,
+    exc_dipoles = exe_dipoles(ele_dips_raman, Gamma_wfcs, kmap, symm_mats,
                               ele_time_rev).conj()
 
     freq_ram, two_ph_raman = compute_two_ph_raman_exc(ome_range,

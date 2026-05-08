@@ -586,10 +586,11 @@ def compute_Raman_twoph_iq(ome_light,
 
 
 @njit(cache=True, nogil=True)
-def _compute_iq(iq, N_ome, nmode, npol, N_q, N_mq, ome_light_arr, ph_freq_q,
-                ph_freq_mq, ex_ene_0, ex_ene_q, ex_ene_mq, ex_dip, g_0_q,
-                g_0_mq, g_q_mq, g_mq_q, gamma_c_typed, scale_bz, scale_one,
-                zero_val, dip_conj):
+def two_ph_raman_exc_numba_kernel(iq, N_ome, nmode, npol, N_q, N_mq,
+                                  ome_light_arr, ph_freq_q, ph_freq_mq,
+                                  ex_ene_0, ex_ene_q, ex_ene_mq, ex_dip, g_0_q,
+                                  g_0_mq, g_q_mq, g_mq_q, gamma_c_typed,
+                                  scale_bz, scale_one, zero_val, dip_conj):
 
     M_tensor_iq = np.zeros((N_ome, 3, nmode, nmode, npol, npol),
                            dtype=ex_dip.dtype)
@@ -764,7 +765,7 @@ def compute_two_ph_raman_exc_numba(ome_light_arr, ph_freq_q, ph_freq_mq,
     zero_val = tmp_f[0]
 
     for iq in prange(Nqpts):
-        M_tensor[:, iq, :, :, :, :, :] = _compute_iq(
+        M_tensor[:, iq, :, :, :, :, :] = two_ph_raman_exc_numba_kernel(
             iq, N_ome, nmode, npol, N_q, N_mq, ome_light_arr, ph_freq_q,
             ph_freq_mq, ex_ene_0, ex_ene_q, ex_ene_mq, ex_dip, g_0_q, g_0_mq,
             g_q_mq, g_mq_q, gamma_c_typed, scale_bz, scale_one, zero_val,

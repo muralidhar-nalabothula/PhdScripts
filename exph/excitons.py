@@ -40,6 +40,7 @@ def ex_ph_mat(wfc_k_q, wfc_k, elph_mat, qpt_exe, qpt_ph, kpts, ktree):
     # outpur : modes, initial_state, final_state
     nmodes = elph_mat.shape[0]
     n_exe_states, nk, nc, nv = wfc_k_q.shape
+    n_ket_states = wfc_k.shape[0]
     #
     idx_k_minus_Q_minus_q = find_kindx(kpts - qpt_ph[None, :] -
                                        qpt_exe[None, :], ktree)  # k-Q-q
@@ -54,7 +55,7 @@ def ex_ph_mat(wfc_k_q, wfc_k, elph_mat, qpt_exe, qpt_ph, kpts, ktree):
     wfc_k_hole = pytorch.from_numpy(wfc_k)
     wfc_kq_conj = pytorch.from_numpy(wfc_k_q).reshape(n_exe_states, -1).conj()
     #
-    ex_ph_mat = pytorch.zeros((nmodes, n_exe_states, n_exe_states),
+    ex_ph_mat = pytorch.zeros((nmodes, n_ket_states, n_exe_states),
                               dtype=pytor_Cmplx)
     ## compute the ex-ph mats
     for imode in range(nmodes):
@@ -62,7 +63,7 @@ def ex_ph_mat(wfc_k_q, wfc_k, elph_mat, qpt_exe, qpt_ph, kpts, ktree):
         tmp_wfc = pytorch.einsum('nkiv,kci->nkcv', wfc_k_electron, gcc[imode])
         ### 2) Compute Hole contribution #(k,k-q-Q) and subtract to (1)
         tmp_wfc -= pytorch.einsum('nkci,kiv->nkcv', wfc_k_hole, gvv[imode])
-        tmp_wfc = tmp_wfc.reshape(n_exe_states, -1)
+        tmp_wfc = tmp_wfc.reshape(n_ket_states, -1)
         pytorch.matmul(tmp_wfc, wfc_kq_conj.T, out=ex_ph_mat[imode])
     ## return ex-ph mat
     return ex_ph_mat.numpy()
