@@ -781,7 +781,7 @@ def compute_two_ph_raman_exc(ome_light,
                              ex_ene_q,
                              ex_dip,
                              g_0_q,
-                             g_q_mq,
+                             g_mq_q,
                              gamma=0.01,
                              precision='s'):
     #// gamma nad ome_light are in eV
@@ -792,7 +792,8 @@ def compute_two_ph_raman_exc(ome_light,
     ph_freq_mq = ph_freq_q[idx_mq]
     ex_ene_mq = ex_ene_q[idx_mq]
     g_0_mq = g_0_q[idx_mq]
-    g_mq_q = g_q_mq[idx_mq]
+    g_q_mq = np.empty_like(g_mq_q)
+    g_q_mq[idx_mq] = g_mq_q
     is_scalar_ome = np.isscalar(ome_light) or np.ndim(ome_light) == 0
     ome_light_arr = np.atleast_1d(ome_light)
     prec = str(precision).strip().lower()

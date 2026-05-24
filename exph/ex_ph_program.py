@@ -150,6 +150,7 @@ kpt_tree = build_ktree(kpts)
 
 ### find the indices of qpoints in kpts
 qidx_in_kpts = find_kindx(qpts, kpt_tree)
+mqidx_in_kpts = find_kindx(-qpts, kpt_tree)
 
 sym_red = np.einsum('ij,njk,kl->nil',
                     lat_vecs.T,
@@ -171,6 +172,7 @@ time_ex_rot = 0
 time_exph_io = 0
 ### compute ex-ph matrix elements:
 ex_ph = []
+ex_ph2 = []  # for Raman
 if Exph:
     print('Computing Exciton-phonon matrix elements for phonon absorption ...')
     for i in tqdm(range(qidx_in_kpts.shape[0]), desc="Exciton-phonon "):
@@ -200,12 +202,36 @@ if Exph:
                               kpts[qidx_in_kpts[i]], kpts, kpt_tree)
         ex_ph.append(ex_ph_tmp)
         time_exph = time_exph + time() - tik
+        #
+        # For two phonon Raman, we need < 0 | dVq| -q>
+        if two_ph_raman:
+            ####
+            tik = time()
+            ik_ibz, isym = kmap[mqidx_in_kpts[i]]
+            ## get the ibZ kpt and symmetry matrix for this q/k point
+            is_sym_time_rev = False
+            if (isym >= symm_mats.shape[0] / (int(ele_time_rev) + 1)):
+                is_sym_time_rev = True
+            wfc_tmp = rotate_exc_wfc(BS_wfcs[ik_ibz], sym_red[isym], kpts, \
+                kpt_tree, kpts_ibz[ik_ibz], Dmats[isym], is_sym_time_rev)
+            ## compute ex-ph matrix
+            time_ex_rot = time_ex_rot + time() - tik
+            tik = time()
+            ex_ph_tmp = ex_ph_mat(Gamma_wfcs, wfc_tmp, eph_mat_iq,
+                                  kpts[mqidx_in_kpts[i]], kpts[qidx_in_kpts[i]],
+                                  kpts, kpt_tree)
+            ex_ph2.append(ex_ph_tmp)
+            time_exph = time_exph + time() - tik
     ## SAving exciton phonon matrix elements
     print('Saving exciton phonon matrix elements')
     tik_exph = time()
     ex_ph = np.array(ex_ph).astype(numpy_Cmplx)
+    if (len(ex_ph2) != 0):
+        ex_ph2 = np.array(ex_ph2).astype(numpy_Cmplx)
     # (iq, modes, initial state (i), final-states (f)) i.e <f|dv_Q|i> for phonon absoption
     np.save('Ex-ph', ex_ph)
+    if (len(ex_ph2) != 0):
+        np.save('Ex-ph2', ex_ph2)
     time_exph_io = time_exph_io + time() - tik_exph
     print('Computing Exciton-photon matrix elements')
     ex_dip = exe_dipoles(ele_dips, Gamma_wfcs, kmap, symm_mats, ele_time_rev)
@@ -214,8 +240,13 @@ else:
     print('Loading exciton phonon/photon matrix elements')
     tik_exph = time()
     ex_ph = np.load('Ex-ph.npy')
+    if two_ph_raman:
+        ex_ph2 = np.load('Ex-ph2.npy')
     ex_dip = np.load('Ex-dipole.npy')
     time_exph_io = time_exph_io + time() - tik_exph
+
+# Ex-ph g(0,q)
+# Ex-ph2 g(-q,q)
 
 ## close el-ph file
 elph_file.close()
@@ -291,13 +322,14 @@ if two_ph_raman:
     exc_energies_in = Gamma_energies
     # we are assuming time reversal
     # < 0 | dv-q| q> = (<q| dv^dagger_-q| 0>)^*
-    g_q_mq = ex_ph.transpose(0, 1, 3, 2).conj()
+    #g_q_mq = ex_ph.transpose(0, 1, 3, 2).conj()
     # Note here we are messing up with phonon phase,
     # but when computing Raman intensities by sum_modes |R|^2
+    # Length gauge is converging faster
     ele_dips_raman = get_dipoles(bs_bands,
                                  nvalance_bnds,
                                  dip_file=dipole_file,
-                                 var='DIP_v')
+                                 var='DIP_iR')
     exc_dipoles = exe_dipoles(ele_dips_raman, Gamma_wfcs, kmap, symm_mats,
                               ele_time_rev).conj()
 
@@ -308,7 +340,7 @@ if two_ph_raman:
                                                       exc_energies,
                                                       exc_dipoles,
                                                       ex_ph,
-                                                      g_q_mq,
+                                                      ex_ph2,
                                                       gamma=broading,
                                                       precision='s')
 
