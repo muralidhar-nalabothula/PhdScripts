@@ -558,16 +558,16 @@ def compute_Raman_twoph_iq(ome_light,
     # We compute only 4 terms, add the other four terms (q,l,m) + (-q, m, l)
     # as we sum over -q and q, we need to multiple by 1/sqrt(2), so to avoid
     # double counting when computing the Intensity by suming all q's (which include -q too)
-    idx_fac_mul = (mq_idxs != np.arange(len(qpts), dtype=int))
     #
     tmp = twoph_raman_ten[0] + twoph_raman_ten[0][mq_idxs].transpose(
         0, 2, 1, 3, 4)
-    tmp[idx_fac_mul] *= 1.0 / np.sqrt(2)
+    tmp *= 1.0 / np.sqrt(2)
+    # (3, nq, n_modes, n_modes, npol, npol).
     twoph_raman_ten[0] = tmp
     #
     tmp = twoph_raman_ten[1] + twoph_raman_ten[1][mq_idxs].transpose(
         0, 2, 1, 3, 4)
-    tmp[idx_fac_mul] *= 1.0 / np.sqrt(2)
+    tmp *= 1.0 / np.sqrt(2)
     twoph_raman_ten[1] = tmp
     #
     # We donot need to Absorp-emit as it is does not have double counting (q and -q )
@@ -590,7 +590,7 @@ def two_ph_raman_exc_numba_kernel(iq, N_ome, nmode, npol, N_q, N_mq,
                                   ome_light_arr, ph_freq_q, ph_freq_mq,
                                   ex_ene_0, ex_ene_q, ex_ene_mq, ex_dip, g_0_q,
                                   g_0_mq, g_q_mq, g_mq_q, gamma_c_typed,
-                                  scale_bz, scale_one, zero_val, dip_conj):
+                                  dip_conj):
 
     M_tensor_iq = np.zeros((N_ome, 3, nmode, nmode, npol, npol),
                            dtype=ex_dip.dtype)
@@ -638,8 +638,8 @@ def two_ph_raman_exc_numba_kernel(iq, N_ome, nmode, npol, N_q, N_mq,
                 E_shift = O1 + O2
                 ome_out = ome_light_typed + E_shift
 
-                if ome_out > zero_val:
-                    prefac = scale_bz * np.sqrt(ome_out / ome_light_typed)
+                if ome_out > 0.0:
+                    prefac = np.sqrt(ome_out / ome_light_typed)
 
                     D1 = ome_light_typed - ex_ene_0 + E_shift + gamma_c_typed
                     W1 = dip_conj / D1
@@ -665,8 +665,8 @@ def two_ph_raman_exc_numba_kernel(iq, N_ome, nmode, npol, N_q, N_mq,
                 E_shift = O1 + O2
                 ome_out = ome_light_typed + E_shift
 
-                if ome_out > zero_val:
-                    prefac = scale_one * np.sqrt(ome_out / ome_light_typed)
+                if ome_out > 0.0:
+                    prefac = np.sqrt(ome_out / ome_light_typed)
 
                     D1 = ome_light_typed - ex_ene_0 + E_shift + gamma_c_typed
                     W1 = dip_conj / D1
@@ -692,8 +692,8 @@ def two_ph_raman_exc_numba_kernel(iq, N_ome, nmode, npol, N_q, N_mq,
                 E_shift = O1 + O2
                 ome_out = ome_light_typed + E_shift
 
-                if ome_out > zero_val:
-                    prefac = scale_bz * np.sqrt(ome_out / ome_light_typed)
+                if ome_out > 0.0:
+                    prefac = np.sqrt(ome_out / ome_light_typed)
 
                     D1 = ome_light_typed - ex_ene_0 + E_shift + gamma_c_typed
                     W1 = dip_conj / D1
@@ -732,7 +732,7 @@ def compute_two_ph_raman_exc_numba(ome_light_arr, ph_freq_q, ph_freq_mq,
     @param g_0_mq Exciton-phonon coupling matrices from q=0 to -q. Shape: (nq, nmode, nstates_at_0, nstates_at_mq)
     @param g_q_mq Exciton-phonon coupling matrices from q to -q. Shape: (nq, nmode, nstates_at_Q, nstates_at_0)
     @param g_mq_q Exciton-phonon coupling matrices from -q to q. Shape: (nq, nmode, nstates_at_mq, nstates_at_0)
-    @param gamma Phenomenological broadening factor.
+    @param gamma Phenomenological broadening factor*1j.
 
     @return The computed Raman scattering tensor for Anti-Stokes (index 0),
     Mixed (index 1), and Stokes (index 2) processes. Shape: (N_ome, nq, 3, nmode, nmode, npol, npol)
@@ -749,27 +749,11 @@ def compute_two_ph_raman_exc_numba(ome_light_arr, ph_freq_q, ph_freq_mq,
 
     dip_conj = np.conj(ex_dip)
 
-    tmp_c = np.zeros_like(ex_dip[0:1, 0])
-    tmp_f = np.zeros_like(ph_freq_q[0:1, 0])
-
-    tmp_c[0] = 1j * gamma
-    gamma_c_typed = tmp_c[0]
-
-    tmp_f[0] = 1.0 / np.sqrt(2.0)
-    scale_bz = 1.0  #tmp_f[0] # we add the prefactor outside
-
-    tmp_f[0] = 1.0
-    scale_one = tmp_f[0]
-
-    tmp_f[0] = 0.0
-    zero_val = tmp_f[0]
-
     for iq in prange(Nqpts):
         M_tensor[:, iq, :, :, :, :, :] = two_ph_raman_exc_numba_kernel(
             iq, N_ome, nmode, npol, N_q, N_mq, ome_light_arr, ph_freq_q,
             ph_freq_mq, ex_ene_0, ex_ene_q, ex_ene_mq, ex_dip, g_0_q, g_0_mq,
-            g_q_mq, g_mq_q, gamma_c_typed, scale_bz, scale_one, zero_val,
-            dip_conj)
+            g_q_mq, g_mq_q, gamma, dip_conj)
 
     return M_tensor
 
@@ -817,6 +801,7 @@ def compute_two_ph_raman_exc(ome_light,
     g_0_mq_c = np.ascontiguousarray(g_0_mq, dtype=c_type)
     g_q_mq_c = np.ascontiguousarray(g_q_mq, dtype=c_type)
     g_mq_q_c = np.ascontiguousarray(g_mq_q, dtype=c_type)
+    gamma = c_type(1j * gamma)
     #
     M_tensor = compute_two_ph_raman_exc_numba(ome_light_c, ph_freq_q_c,
                                               ph_freq_mq_c, ex_ene_0_c,
@@ -825,10 +810,10 @@ def compute_two_ph_raman_exc(ome_light,
                                               g_mq_q_c, gamma)
     #
     # compute prefactors for stokes and anti-stokes to avoid double counting.
-    prefactor = np.where(idx_mq == np.arange(len(idx_mq), dtype=int), 1.0,
-                         1 / np.sqrt(2))
-    M_tensor[:, :, 0, ...] *= prefactor[None, :, None, None, None, None]
-    M_tensor[:, :, 2, ...] *= prefactor[None, :, None, None, None, None]
+    # (N_ome, nq, 3, nmode, nmode, npol, npol)
+    n_modes = M_tensor.shape[3]
+    M_tensor[:, :, 0, ...] *= 1 / np.sqrt(2)
+    M_tensor[:, :, 2, ...] *= 1 / np.sqrt(2)
     #
     Nqpts, nmode = ph_freq_q_c.shape
     raman_shift_freq = np.zeros((Nqpts, 3, nmode, nmode), dtype=f_type)
@@ -1008,40 +993,39 @@ def test_compute_raman_twoph():
         [47, 53, 40, 154, 94, 22, 127, 121, 40, 100, 12, 29, 24, 21, 116, 99])
     #
     array1 = np.array([
-        0.02370519 - 0.0606795j, 0.0595814 - 0.05695087j,
-        0.06482968 - 0.08883329j, 0.01997198 - 0.01840819j,
-        0.01732709 - 0.01284454j, 0.02215954 - 0.0269094j,
-        0.01257501 - 0.01988268j, 0.02076935 - 0.08904694j,
-        0.06482968 - 0.08883329j, 0.05815613 - 0.06474335j,
-        0.03483406 - 0.03026129j, 0.04629167 - 0.09888207j,
-        0.01591035 - 0.00963696j, 0.04557751 - 0.08544062j,
-        0.02319235 - 0.06093612j, 0.01117465 - 0.01165123j
-    ])
+        0.0167621 - 0.04290689j, 0.04213041 - 0.04027035j, 0.04584151 -
+        0.06281462j, 0.01412232 - 0.01301656j, 0.0122521 - 0.00908246j,
+        0.01566916 - 0.01902782j, 0.00889187 - 0.01405918j, 0.01468615 -
+        0.0629657j, 0.04584151 - 0.06281462j, 0.04112259 - 0.04578046j,
+        0.0246314 - 0.02139796j, 0.03273315 - 0.06992018j,
+        0.01125032 - 0.00681436j, 0.03222817 - 0.06041564j,
+        0.01639947 - 0.04308835j, 0.00790167 - 0.00823867j
+    ],
+                      dtype=complex)
 
     array2 = np.array([
-        0.04298482 + 0.04175829j, 0.01337865 + 0.00415358j,
-        0.02373522 + 0.00074705j, 0.02445325 + 0.00188247j,
-        0.07926921 + 0.03226187j, 0.08705704 + 0.0397504j,
-        0.01868467 + 0.00312194j, 0.09658909 + 0.05992155j,
-        0.07717367 + 0.06458532j, 0.08048352 + 0.04000037j,
-        0.043007 + 0.04270359j, 0.0713391 + 0.05482515j,
-        0.01868467 + 0.00312194j, 0.01613142 + 0.00695626j,
-        0.05491413 + 0.03062807j, 0.07659879 + 0.06490992j
-    ])
+        0.03039485 + 0.02952757j, 0.00946014 + 0.00293703j, 0.01678334 +
+        0.00052825j, 0.01729106 + 0.0013311j, 0.05605179 + 0.02281259j,
+        0.06155862 + 0.02810778j, 0.01321206 + 0.00220755j, 0.0682988 +
+        0.04237094j, 0.05457003 + 0.04566872j, 0.05691044 + 0.02828453j,
+        0.03041054 + 0.030196j, 0.05044436 + 0.03876724j,
+        0.01321206 + 0.00220755j, 0.01140664 + 0.00491882j,
+        0.03883016 + 0.02165732j, 0.05416353 + 0.04589825j
+    ],
+                      dtype=complex)
 
     array3 = np.array([
-        -0.01933132 + 0.00756446j, -0.03490316 + 0.00345063j,
-        -0.01851361 + 0.00354942j, -0.06968648 + 0.02585299j,
-        -0.06954453 + 0.00950634j, -0.01866642 - 0.00057332j,
-        -0.06341267 + 0.02058042j, -0.07771536 + 0.0148068j,
-        -0.01851361 + 0.00354942j, -0.0571203 + 0.01528793j,
+        -0.01933132 + 0.00756446j, -0.03490316 + 0.00345063j, -0.01851361 +
+        0.00354942j, -0.06968648 + 0.02585299j, -0.06954453 + 0.00950634j,
+        -0.01866642 - 0.00057332j, -0.06341267 + 0.02058042j, -0.07771536 +
+        0.0148068j, -0.01851361 + 0.00354942j, -0.0571203 + 0.01528793j,
         -0.01206034 - 0.00137282j, -0.01262813 + 0.00853879j,
         -0.01697254 - 0.00540643j, -0.01382215 - 0.002895j,
         -0.10852985 + 0.02673477j, -0.04462379 + 0.00411623j
-    ])
-
+    ],
+                      dtype=complex)
+    #
     ref_res = np.vstack([array1, array2, array3])
-
     max1 = np.max(np.abs(result[0][rand_pick1] - ref_res[0]))
     max2 = np.max(np.abs(result[1][rand_pick2] - ref_res[1]))
     max3 = np.max(np.abs(result[2][rand_pick3] - ref_res[2]))
@@ -1115,7 +1099,7 @@ def test_compute_two_ph_raman_exc():
                                          g_0_q,
                                          g_q_mq,
                                          gamma=gamma,
-                                         precision='d')
+                                         precision='s')
 
     #ref = result[:,:,0,1,:,:].reshape(-1)
     ref = np.array([
@@ -1172,3 +1156,5 @@ if __name__ == "__main__":
     print(test_compute_Raman_oneph_ip())
     print(test_compute_raman_twoph())
     print(test_compute_two_ph_raman_exc())
+
+

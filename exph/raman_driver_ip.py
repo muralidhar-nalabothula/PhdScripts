@@ -24,7 +24,6 @@ from exph_precision import *
 folder = '/Users/murali/phd/one_phonon_raman/si/2ph/ww'
 SAVE_dir = folder + '/silicon.save/SAVE'
 elph_file = folder + '/elph/ndb.elph'
-Dmat_file = folder + '/elph/ndb.Dmats'
 dipole_file = folder + '/silicon.save/dipoles/ndb.dipoles'
 omega_one_ph_range = [0.001, 4, 10]  ## (min max, numpoints) in eV
 omega_two_ph_freq = [
@@ -48,8 +47,8 @@ assert (nvalance_bnds > 0), "No valance bnds included"
 #
 print('Reading Phonon Data')
 elph_file = Dataset(elph_file, 'r')
-ph_sym, ph_time_rev, kpts, kmap, qpts, qmap, ph_freq, stard_conv, \
-    elph_bnds_range, Dmats = get_ph_data(bands, elph_file, Dmat_file)
+kpts, kmap, qpts, qmap, ph_freq, stard_conv, \
+    elph_bnds_range = get_ph_data(bands, elph_file)
 
 ### Read dipoles
 ele_dips = get_dipoles(bands, nvalance_bnds, dip_file=dipole_file, var='DIP_v')
