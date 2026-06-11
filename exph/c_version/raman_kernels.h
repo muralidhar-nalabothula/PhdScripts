@@ -26,8 +26,8 @@ void compute_Raman_twoph_iq(
     const complex_t* gkkp_miq,  // (nmode, nk, nc+nv, nc+nv)
     const real_t* kpts,         // (nk, 3)
     const real_t* qpts,         // (nq, 3)
-    int_type iq, int_type minus_iq_idx,
-    double CellVol, double broading, int_type npol, int_type nk, int_type nc,
-    int_type nv, int_type nmode, int_type nq);
+    int_type iq, int_type minus_iq_idx, double CellVol, double broading,
+    int_type npol, int_type nk, int_type nc, int_type nv, int_type nmode,
+    int_type nq);
 
 #endif

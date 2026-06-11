@@ -41,12 +41,12 @@ static int_type find_nearest(const real_t* pts, int_type n, double qx,
 void compute_Raman_twoph_iq(complex_t* twoph_raman_ten, double ome_light,
                             const real_t* ph_freq, const real_t* Qp_ene,
                             const complex_t* elec_dip, const complex_t* gkkp_iq,
-                            const complex_t* gkkp_miq,
-                            const real_t* kpts, const real_t* qpts,
-                            int_type iq, int_type minus_iq_idx,
-                            double CellVol, double broading, int_type npol,
-                            int_type nk, int_type nc, int_type nv,
-                            int_type nmode, int_type nq)
+                            const complex_t* gkkp_miq, const real_t* kpts,
+                            const real_t* qpts, int_type iq,
+                            int_type minus_iq_idx, double CellVol,
+                            double broading, int_type npol, int_type nk,
+                            int_type nc, int_type nv, int_type nmode,
+                            int_type nq)
 {
     double broading_Ha = broading / 27.211 / 2.0;
     double ome_light_Ha = ome_light / 27.211;
@@ -142,20 +142,17 @@ void compute_Raman_twoph_iq(complex_t* twoph_raman_ten, double ome_light,
                                                Qp_ene[k * nbnds + v]) +
                                               I * broading_Ha));
                                         complex_t gcc1 =
-                                            gkkp_miq[((jl * nk +
-                                                   kpq) *
-                                                      nbnds +
-                                                  nv + cp) *
-                                                     nbnds +
-                                                 nv + c];
+                                            gkkp_miq[((jl * nk + kpq) * nbnds +
+                                                      nv + cp) *
+                                                         nbnds +
+                                                     nv + c];
                                         m1_tmp1_aa += gcc1 * G1;
 
                                         complex_t gcc2 =
-                                            gkkp_iq[((il * nk + k) *
-                                                      nbnds +
-                                                  nv + c) *
-                                                     nbnds +
-                                                 nv + cp];
+                                            gkkp_iq[((il * nk + k) * nbnds +
+                                                     nv + c) *
+                                                        nbnds +
+                                                    nv + cp];
                                         complex_t dS =
                                             conj(
                                                 elec_dip[((pol2 * nk + k) * nc +
@@ -193,12 +190,10 @@ void compute_Raman_twoph_iq(complex_t* twoph_raman_ten, double ome_light,
                                                Qp_ene[k * nbnds + vp]) +
                                               I * broading_Ha));
                                         complex_t gvv1 =
-                                            gkkp_miq[((jl * nk +
-                                                   k) *
-                                                      nbnds +
-                                                  v) *
-                                                     nbnds +
-                                                 vp];
+                                            gkkp_miq[((jl * nk + k) * nbnds +
+                                                      v) *
+                                                         nbnds +
+                                                     vp];
                                         m2_tmp1_aa += G1 * gvv1;
 
                                         complex_t dS =
@@ -212,12 +207,10 @@ void compute_Raman_twoph_iq(complex_t* twoph_raman_ten, double ome_light,
                                               Qp_ene[k * nbnds + vp]) +
                                              I * broading_Ha);
                                         complex_t gvv2 =
-                                            gkkp_iq[((il * nk +
-                                                   kmq) *
-                                                      nbnds +
-                                                  vp) *
-                                                     nbnds +
-                                                 v];
+                                            gkkp_iq[((il * nk + kmq) * nbnds +
+                                                     vp) *
+                                                        nbnds +
+                                                    v];
                                         m2_tmp2_aa += dS * gvv2;
                                     }
                                     complex_t D_kc_kmqv_il =
@@ -249,13 +242,10 @@ void compute_Raman_twoph_iq(complex_t* twoph_raman_ten, double ome_light,
                                                           cp] -
                                                    Qp_ene[kpq * nbnds + vp]) +
                                                   I * broading_Ha));
-                                            complex_t gvv1 =
-                                                gkkp_miq[((jl * nk +
-                                                       kpq) *
-                                                          nbnds +
-                                                      v) *
-                                                         nbnds +
-                                                     vp];
+                                            complex_t gvv1 = gkkp_miq
+                                                [((jl * nk + kpq) * nbnds + v) *
+                                                     nbnds +
+                                                 vp];
                                             m3_tmp1_aa_cp += G1 * gvv1;
                                         }
                                         complex_t D_kqc_kv_il_cp =
@@ -267,11 +257,10 @@ void compute_Raman_twoph_iq(complex_t* twoph_raman_ten, double ome_light,
                                              ph_freq[iq * nmode + il]);
                                         m3_tmp1_aa_cp *= D_kqc_kv_il_cp;
                                         complex_t gcc =
-                                            gkkp_iq[((il * nk + k) *
-                                                      nbnds +
-                                                  nv + cp) *
-                                                     nbnds +
-                                                 nv + c];
+                                            gkkp_iq[((il * nk + k) * nbnds +
+                                                     nv + cp) *
+                                                        nbnds +
+                                                    nv + c];
                                         m3_tmp2_aa += gcc * m3_tmp1_aa_cp;
                                     }
                                     sum_aa -= dipS_res * m3_tmp2_aa;
@@ -297,12 +286,11 @@ void compute_Raman_twoph_iq(complex_t* twoph_raman_ten, double ome_light,
                                                    Qp_ene[kmq * nbnds + vp]) +
                                                   I * broading_Ha));
                                             complex_t gcc1 =
-                                                gkkp_miq[((jl * nk +
-                                                       k) *
-                                                          nbnds +
-                                                      nv + cp) *
-                                                         nbnds +
-                                                     nv + c];
+                                                gkkp_miq[((jl * nk + k) *
+                                                              nbnds +
+                                                          nv + cp) *
+                                                             nbnds +
+                                                         nv + c];
                                             m4_tmp1_aa_vp += gcc1 * G1;
                                         }
                                         complex_t D_kc_kmqv_il_vp =
@@ -313,12 +301,10 @@ void compute_Raman_twoph_iq(complex_t* twoph_raman_ten, double ome_light,
                                                    ph_freq[iq * nmode + il]);
                                         m4_tmp1_aa_vp *= D_kc_kmqv_il_vp;
                                         complex_t gvv =
-                                            gkkp_iq[((il * nk +
-                                                   kmq) *
-                                                      nbnds +
-                                                  v) *
-                                                     nbnds +
-                                                 vp];
+                                            gkkp_iq[((il * nk + kmq) * nbnds +
+                                                     v) *
+                                                        nbnds +
+                                                    vp];
                                         m4_tmp2_aa += m4_tmp1_aa_vp * gvv;
                                     }
                                     sum_aa -= dipS_res * m4_tmp2_aa;
@@ -340,11 +326,10 @@ void compute_Raman_twoph_iq(complex_t* twoph_raman_ten, double ome_light,
                                                Qp_ene[k * nbnds + v]) +
                                               I * broading_Ha));
                                         complex_t gcc1 = conj(
-                                            gkkp_iq[((jl * nk + k) *
-                                                      nbnds +
-                                                  nv + c) *
-                                                     nbnds +
-                                                 nv + cp]);
+                                            gkkp_iq[((jl * nk + k) * nbnds +
+                                                     nv + c) *
+                                                        nbnds +
+                                                    nv + cp]);
                                         m1_tmp1_ee += gcc1 * G1;
 
                                         complex_t dS =
@@ -358,12 +343,10 @@ void compute_Raman_twoph_iq(complex_t* twoph_raman_ten, double ome_light,
                                               Qp_ene[k * nbnds + v]) +
                                              I * broading_Ha);
                                         complex_t gcc2 = conj(
-                                            gkkp_miq[((il * nk +
-                                                   kpq) *
-                                                      nbnds +
-                                                  nv + cp) *
-                                                     nbnds +
-                                                 nv + c]);
+                                            gkkp_miq[((il * nk + kpq) * nbnds +
+                                                      nv + cp) *
+                                                         nbnds +
+                                                     nv + c]);
                                         m1_tmp2_ee += gcc2 * dS;
                                     }
                                     complex_t D_kqc_kv_minus_il =
@@ -391,13 +374,11 @@ void compute_Raman_twoph_iq(complex_t* twoph_raman_ten, double ome_light,
                                               (Qp_ene[k * nbnds + nv + c] -
                                                Qp_ene[k * nbnds + vp]) +
                                               I * broading_Ha));
-                                        complex_t gvv1 =
-                                            conj(gkkp_iq[((jl * nk +
-                                                        kmq) *
-                                                           nbnds +
-                                                       vp) *
-                                                          nbnds +
-                                                      v]);
+                                        complex_t gvv1 = conj(
+                                            gkkp_iq[((jl * nk + kmq) * nbnds +
+                                                     vp) *
+                                                        nbnds +
+                                                    v]);
                                         m2_tmp1_ee += G1 * gvv1;
 
                                         complex_t dS =
@@ -411,12 +392,10 @@ void compute_Raman_twoph_iq(complex_t* twoph_raman_ten, double ome_light,
                                               Qp_ene[k * nbnds + vp]) +
                                              I * broading_Ha);
                                         complex_t gvv2 = conj(
-                                            gkkp_miq[((il * nk +
-                                                   k) *
-                                                      nbnds +
-                                                  v) *
-                                                     nbnds +
-                                                 vp]);
+                                            gkkp_miq[((il * nk + k) * nbnds +
+                                                      v) *
+                                                         nbnds +
+                                                     vp]);
                                         m2_tmp2_ee += dS * gvv2;
                                     }
                                     complex_t D_kc_kmqv_minus_il =
@@ -450,12 +429,10 @@ void compute_Raman_twoph_iq(complex_t* twoph_raman_ten, double ome_light,
                                                    Qp_ene[kpq * nbnds + vp]) +
                                                   I * broading_Ha));
                                             complex_t gvv1 = conj(
-                                                gkkp_iq[((jl * nk +
-                                                       k) *
-                                                          nbnds +
-                                                      vp) *
-                                                         nbnds +
-                                                     v]);
+                                                gkkp_iq[((jl * nk + k) * nbnds +
+                                                         vp) *
+                                                            nbnds +
+                                                        v]);
                                             m3_tmp1_ee_cp += G1 * gvv1;
                                         }
                                         complex_t D_kqc_kv_minus_il_cp =
@@ -468,12 +445,10 @@ void compute_Raman_twoph_iq(complex_t* twoph_raman_ten, double ome_light,
                                                      il]);
                                         m3_tmp1_ee_cp *= D_kqc_kv_minus_il_cp;
                                         complex_t gcc = conj(
-                                            gkkp_miq[((il * nk +
-                                                   kpq) *
-                                                      nbnds +
-                                                  nv + c) *
-                                                     nbnds +
-                                                 nv + cp]);
+                                            gkkp_miq[((il * nk + kpq) * nbnds +
+                                                      nv + c) *
+                                                         nbnds +
+                                                     nv + cp]);
                                         m3_tmp2_ee += gcc * m3_tmp1_ee_cp;
                                     }
                                     sum_ee -= dipS_res * m3_tmp2_ee;
@@ -498,13 +473,12 @@ void compute_Raman_twoph_iq(complex_t* twoph_raman_ten, double ome_light,
                                                           cp] -
                                                    Qp_ene[kmq * nbnds + vp]) +
                                                   I * broading_Ha));
-                                            complex_t gcc1 = conj(
-                                                gkkp_iq[((jl * nk +
-                                                       kmq) *
-                                                          nbnds +
-                                                      nv + c) *
-                                                         nbnds +
-                                                     nv + cp]);
+                                            complex_t gcc1 =
+                                                conj(gkkp_iq[((jl * nk + kmq) *
+                                                                  nbnds +
+                                                              nv + c) *
+                                                                 nbnds +
+                                                             nv + cp]);
                                             m4_tmp1_ee_vp += gcc1 * G1;
                                         }
                                         complex_t D_kc_kmqv_minus_il_vp =
@@ -517,12 +491,10 @@ void compute_Raman_twoph_iq(complex_t* twoph_raman_ten, double ome_light,
                                                      il]);
                                         m4_tmp1_ee_vp *= D_kc_kmqv_minus_il_vp;
                                         complex_t gvv = conj(
-                                            gkkp_miq[((il * nk +
-                                                   k) *
-                                                      nbnds +
-                                                  vp) *
-                                                     nbnds +
-                                                 v]);
+                                            gkkp_miq[((il * nk + k) * nbnds +
+                                                      vp) *
+                                                         nbnds +
+                                                     v]);
                                         m4_tmp2_ee += m4_tmp1_ee_vp * gvv;
                                     }
                                     sum_ee -= dipS_res * m4_tmp2_ee;
@@ -544,11 +516,10 @@ void compute_Raman_twoph_iq(complex_t* twoph_raman_ten, double ome_light,
                                                Qp_ene[k * nbnds + v]) +
                                               I * broading_Ha));
                                         complex_t gcc1 = conj(
-                                            gkkp_iq[((jl * nk + k) *
-                                                      nbnds +
-                                                  nv + c) *
-                                                     nbnds +
-                                                 nv + cp]);
+                                            gkkp_iq[((jl * nk + k) * nbnds +
+                                                     nv + c) *
+                                                        nbnds +
+                                                    nv + cp]);
                                         m1_tmp1_ae += gcc1 * G1;
 
                                         complex_t dS =
@@ -562,11 +533,10 @@ void compute_Raman_twoph_iq(complex_t* twoph_raman_ten, double ome_light,
                                               Qp_ene[k * nbnds + v]) +
                                              I * broading_Ha);
                                         complex_t gcc2 =
-                                            gkkp_iq[((il * nk + k) *
-                                                      nbnds +
-                                                  nv + c) *
-                                                     nbnds +
-                                                 nv + cp];
+                                            gkkp_iq[((il * nk + k) * nbnds +
+                                                     nv + c) *
+                                                        nbnds +
+                                                    nv + cp];
                                         m1_tmp2_ae += gcc2 * dS;
                                     }
                                     sum_ae +=
@@ -587,13 +557,11 @@ void compute_Raman_twoph_iq(complex_t* twoph_raman_ten, double ome_light,
                                               (Qp_ene[k * nbnds + nv + c] -
                                                Qp_ene[k * nbnds + vp]) +
                                               I * broading_Ha));
-                                        complex_t gvv1 =
-                                            conj(gkkp_iq[((jl * nk +
-                                                        kmq) *
-                                                           nbnds +
-                                                       vp) *
-                                                          nbnds +
-                                                      v]);
+                                        complex_t gvv1 = conj(
+                                            gkkp_iq[((jl * nk + kmq) * nbnds +
+                                                     vp) *
+                                                        nbnds +
+                                                    v]);
                                         m2_tmp1_ae += G1 * gvv1;
 
                                         complex_t dS =
@@ -607,12 +575,10 @@ void compute_Raman_twoph_iq(complex_t* twoph_raman_ten, double ome_light,
                                               Qp_ene[k * nbnds + vp]) +
                                              I * broading_Ha);
                                         complex_t gvv2 =
-                                            gkkp_iq[((il * nk +
-                                                   kmq) *
-                                                      nbnds +
-                                                  vp) *
-                                                     nbnds +
-                                                 v];
+                                            gkkp_iq[((il * nk + kmq) * nbnds +
+                                                     vp) *
+                                                        nbnds +
+                                                    v];
                                         m2_tmp2_ae += dS * gvv2;
                                     }
                                     sum_ae +=
@@ -639,12 +605,10 @@ void compute_Raman_twoph_iq(complex_t* twoph_raman_ten, double ome_light,
                                                    Qp_ene[kpq * nbnds + vp]) +
                                                   I * broading_Ha));
                                             complex_t gvv1 = conj(
-                                                gkkp_iq[((jl * nk +
-                                                       k) *
-                                                          nbnds +
-                                                      vp) *
-                                                         nbnds +
-                                                     v]);
+                                                gkkp_iq[((jl * nk + k) * nbnds +
+                                                         vp) *
+                                                            nbnds +
+                                                        v]);
                                             m3_tmp1_ae_cp += G1 * gvv1;
                                         }
                                         complex_t D_kqc_kv_il_cp =
@@ -656,11 +620,10 @@ void compute_Raman_twoph_iq(complex_t* twoph_raman_ten, double ome_light,
                                              ph_freq[iq * nmode + il]);
                                         m3_tmp1_ae_cp *= D_kqc_kv_il_cp;
                                         complex_t gcc =
-                                            gkkp_iq[((il * nk + k) *
-                                                      nbnds +
-                                                  nv + cp) *
-                                                     nbnds +
-                                                 nv + c];
+                                            gkkp_iq[((il * nk + k) * nbnds +
+                                                     nv + cp) *
+                                                        nbnds +
+                                                    nv + c];
                                         m3_tmp2_ae += gcc * m3_tmp1_ae_cp;
                                     }
                                     sum_ae -= dipS_res * m3_tmp2_ae;
@@ -685,13 +648,12 @@ void compute_Raman_twoph_iq(complex_t* twoph_raman_ten, double ome_light,
                                                           cp] -
                                                    Qp_ene[kmq * nbnds + vp]) +
                                                   I * broading_Ha));
-                                            complex_t gcc1 = conj(
-                                                gkkp_iq[((jl * nk +
-                                                       kmq) *
-                                                          nbnds +
-                                                      nv + c) *
-                                                         nbnds +
-                                                     nv + cp]);
+                                            complex_t gcc1 =
+                                                conj(gkkp_iq[((jl * nk + kmq) *
+                                                                  nbnds +
+                                                              nv + c) *
+                                                                 nbnds +
+                                                             nv + cp]);
                                             m4_tmp1_ae_vp += gcc1 * G1;
                                         }
                                         complex_t D_kc_kmqv_il_vp =
@@ -702,12 +664,10 @@ void compute_Raman_twoph_iq(complex_t* twoph_raman_ten, double ome_light,
                                                    ph_freq[iq * nmode + il]);
                                         m4_tmp1_ae_vp *= D_kc_kmqv_il_vp;
                                         complex_t gvv =
-                                            gkkp_iq[((il * nk +
-                                                   kmq) *
-                                                      nbnds +
-                                                  v) *
-                                                     nbnds +
-                                                 vp];
+                                            gkkp_iq[((il * nk + kmq) * nbnds +
+                                                     v) *
+                                                        nbnds +
+                                                    vp];
                                         m4_tmp2_ae += m4_tmp1_ae_vp * gvv;
                                     }
                                     sum_ae -= dipS_res * m4_tmp2_ae;
@@ -729,12 +689,10 @@ void compute_Raman_twoph_iq(complex_t* twoph_raman_ten, double ome_light,
                                                Qp_ene[k * nbnds + v]) +
                                               I * broading_Ha));
                                         complex_t gcc1 =
-                                            gkkp_miq[((jl * nk +
-                                                   kpq) *
-                                                      nbnds +
-                                                  nv + cp) *
-                                                     nbnds +
-                                                 nv + c];
+                                            gkkp_miq[((jl * nk + kpq) * nbnds +
+                                                      nv + cp) *
+                                                         nbnds +
+                                                     nv + c];
                                         m1_tmp1_ea += gcc1 * G1;
 
                                         complex_t dS =
@@ -748,12 +706,10 @@ void compute_Raman_twoph_iq(complex_t* twoph_raman_ten, double ome_light,
                                               Qp_ene[k * nbnds + v]) +
                                              I * broading_Ha);
                                         complex_t gcc2 = conj(
-                                            gkkp_miq[((il * nk +
-                                                   kpq) *
-                                                      nbnds +
-                                                  nv + cp) *
-                                                     nbnds +
-                                                 nv + c]);
+                                            gkkp_miq[((il * nk + kpq) * nbnds +
+                                                      nv + cp) *
+                                                         nbnds +
+                                                     nv + c]);
                                         m1_tmp2_ea += gcc2 * dS;
                                     }
                                     sum_ea += m1_tmp2_ea * m1_tmp1_ea *
@@ -775,12 +731,10 @@ void compute_Raman_twoph_iq(complex_t* twoph_raman_ten, double ome_light,
                                                Qp_ene[k * nbnds + vp]) +
                                               I * broading_Ha));
                                         complex_t gvv1 =
-                                            gkkp_miq[((jl * nk +
-                                                   k) *
-                                                      nbnds +
-                                                  v) *
-                                                     nbnds +
-                                                 vp];
+                                            gkkp_miq[((jl * nk + k) * nbnds +
+                                                      v) *
+                                                         nbnds +
+                                                     vp];
                                         m2_tmp1_ea += G1 * gvv1;
 
                                         complex_t dS =
@@ -794,12 +748,10 @@ void compute_Raman_twoph_iq(complex_t* twoph_raman_ten, double ome_light,
                                               Qp_ene[k * nbnds + vp]) +
                                              I * broading_Ha);
                                         complex_t gvv2 = conj(
-                                            gkkp_miq[((il * nk +
-                                                   k) *
-                                                      nbnds +
-                                                  v) *
-                                                     nbnds +
-                                                 vp]);
+                                            gkkp_miq[((il * nk + k) * nbnds +
+                                                      v) *
+                                                         nbnds +
+                                                     vp]);
                                         m2_tmp2_ea += dS * gvv2;
                                     }
                                     sum_ea += m2_tmp2_ea * m2_tmp1_ea *
@@ -825,13 +777,10 @@ void compute_Raman_twoph_iq(complex_t* twoph_raman_ten, double ome_light,
                                                           cp] -
                                                    Qp_ene[kpq * nbnds + vp]) +
                                                   I * broading_Ha));
-                                            complex_t gvv1 =
-                                                gkkp_miq[((jl * nk +
-                                                       kpq) *
-                                                          nbnds +
-                                                      v) *
-                                                         nbnds +
-                                                     vp];
+                                            complex_t gvv1 = gkkp_miq
+                                                [((jl * nk + kpq) * nbnds + v) *
+                                                     nbnds +
+                                                 vp];
                                             m3_tmp1_ea_cp += G1 * gvv1;
                                         }
                                         complex_t D_kqc_kv_minus_il_cp =
@@ -844,12 +793,10 @@ void compute_Raman_twoph_iq(complex_t* twoph_raman_ten, double ome_light,
                                                      il]);
                                         m3_tmp1_ea_cp *= D_kqc_kv_minus_il_cp;
                                         complex_t gcc = conj(
-                                            gkkp_miq[((il * nk +
-                                                   kpq) *
-                                                      nbnds +
-                                                  nv + c) *
-                                                     nbnds +
-                                                 nv + cp]);
+                                            gkkp_miq[((il * nk + kpq) * nbnds +
+                                                      nv + c) *
+                                                         nbnds +
+                                                     nv + cp]);
                                         m3_tmp2_ea += gcc * m3_tmp1_ea_cp;
                                     }
                                     sum_ea -= dipS_res * m3_tmp2_ea;
@@ -875,12 +822,11 @@ void compute_Raman_twoph_iq(complex_t* twoph_raman_ten, double ome_light,
                                                    Qp_ene[kmq * nbnds + vp]) +
                                                   I * broading_Ha));
                                             complex_t gcc1 =
-                                                gkkp_miq[((jl * nk +
-                                                       k) *
-                                                          nbnds +
-                                                      nv + cp) *
-                                                         nbnds +
-                                                     nv + c];
+                                                gkkp_miq[((jl * nk + k) *
+                                                              nbnds +
+                                                          nv + cp) *
+                                                             nbnds +
+                                                         nv + c];
                                             m4_tmp1_ea_vp += gcc1 * G1;
                                         }
                                         complex_t D_kc_kmqv_minus_il_vp =
@@ -893,12 +839,10 @@ void compute_Raman_twoph_iq(complex_t* twoph_raman_ten, double ome_light,
                                                      il]);
                                         m4_tmp1_ea_vp *= D_kc_kmqv_minus_il_vp;
                                         complex_t gvv = conj(
-                                            gkkp_miq[((il * nk +
-                                                   k) *
-                                                      nbnds +
-                                                  vp) *
-                                                     nbnds +
-                                                 v]);
+                                            gkkp_miq[((il * nk + k) * nbnds +
+                                                      vp) *
+                                                         nbnds +
+                                                     v]);
                                         m4_tmp2_ea += m4_tmp1_ea_vp * gvv;
                                     }
                                     sum_ea -= dipS_res * m4_tmp2_ea;

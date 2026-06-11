@@ -92,8 +92,10 @@ int main(int argc, char** argv)
     size_t kmap_size;
     read_nc_int(ncid_elph, "kmap", &kmap, &kmap_size);
     int_type nk_ibz = 0;
-    for (int_type i = 0; i < nkpts_full; i++) {
-        if (kmap[i * 2 + 0] >= nk_ibz) {
+    for (int_type i = 0; i < nkpts_full; i++)
+    {
+        if (kmap[i * 2 + 0] >= nk_ibz)
+        {
             nk_ibz = kmap[i * 2 + 0] + 1;
         }
     }
@@ -151,20 +153,21 @@ int main(int argc, char** argv)
             malloc(n_omega_1ph * nmodes * 3 * 3 * sizeof(complex_t));
 
         real_t* omega_1ph = malloc(n_omega_1ph * sizeof(real_t));
-        for (int_type w = 0; w < n_omega_1ph; w++) {
-            omega_1ph[w] = conf.omega_one_ph_range[0] +
+        for (int_type w = 0; w < n_omega_1ph; w++)
+        {
+            omega_1ph[w] =
+                conf.omega_one_ph_range[0] +
                 w * (conf.omega_one_ph_range[1] - conf.omega_one_ph_range[0]) /
                     (n_omega_1ph - 1);
         }
 
         // Read elph for iq = 0
-        read_elph(ncid_elph, &elph_mat, 0, nqpts, nkpts_full, nmodes, nband_full_elph,
-                  elph_start_bnd, elph_end_bnd);
+        read_elph(ncid_elph, &elph_mat, 0, nqpts, nkpts_full, nmodes,
+                  nband_full_elph, elph_start_bnd, elph_end_bnd);
 
         for (int_type m = 0; m < nmodes; m++)
         {
-            real_t freq =
-                fabs(ph_freq[0 * nmodes + m]) * 0.5;
+            real_t freq = fabs(ph_freq[0 * nmodes + m]) * 0.5;
             real_t sqrt_EPh = 0;
             if (freq > 1e-10)
             {
@@ -193,20 +196,27 @@ int main(int argc, char** argv)
         for (int_type w = 0; w < n_omega_1ph; w++)
         {
             compute_Raman_oneph_ip(
-                &all_Ram_ten[w * nmodes * 3 * 3], omega_1ph[w], ph_freq_iq0, Qp_ene, dipoles_full, elph_mat,
-                CellVol, conf.broading, 3, 5.0, nkpts_full, nc, nv, nmodes);
+                &all_Ram_ten[w * nmodes * 3 * 3], omega_1ph[w], ph_freq_iq0,
+                Qp_ene, dipoles_full, elph_mat, CellVol, conf.broading, 3, 5.0,
+                nkpts_full, nc, nv, nmodes);
         }
 
         // Save to NetCDF
-        write_nc_real_1d(ncid_out, "1ph_light_omega_eV", "n_omega_1ph", omega_1ph, n_omega_1ph);
-        
+        write_nc_real_1d(ncid_out, "1ph_light_omega_eV", "n_omega_1ph",
+                         omega_1ph, n_omega_1ph);
+
         real_t* ph_freq_cm = malloc(nmodes * sizeof(real_t));
-        for (int m = 0; m < nmodes; m++) ph_freq_cm[m] = ph_freq_iq0[m] * 219474.63;
-        write_nc_real_1d(ncid_out, "1ph_ph_freq_cm-1", "nmodes", ph_freq_cm, nmodes);
-        
+        for (int m = 0; m < nmodes; m++)
+        {
+            ph_freq_cm[m] = ph_freq_iq0[m] * 219474.63;
+        }
+        write_nc_real_1d(ncid_out, "1ph_ph_freq_cm-1", "nmodes", ph_freq_cm,
+                         nmodes);
+
         const char* dims_1ph[] = {"n_omega_1ph", "nmodes", "pol1", "pol2"};
         size_t sizes_1ph[] = {(size_t)n_omega_1ph, (size_t)nmodes, 3, 3};
-        write_nc_complex_nd(ncid_out, "1ph_Raman_tensor", 4, dims_1ph, sizes_1ph, all_Ram_ten);
+        write_nc_complex_nd(ncid_out, "1ph_Raman_tensor", 4, dims_1ph,
+                            sizes_1ph, all_Ram_ten);
 
         free(ph_freq_iq0);
         free(ph_freq_cm);
@@ -222,12 +232,14 @@ int main(int argc, char** argv)
         // Output tensor shape: (n_omega_2ph, 4, nq, nmode, nmode, npol, npol)
         // For now, C code only has one omega.
         int_type n_omega_2ph = 1;
-        complex_t* all_Ram_ten_twoph = malloc(
-            n_omega_2ph * 4 * nqpts * nmodes * nmodes * 3 * 3 * sizeof(complex_t));
-        
-        complex_t* tmp_ten = malloc(
-            4 * nqpts * nmodes * nmodes * 3 * 3 * sizeof(complex_t));
-        memset(tmp_ten, 0, 4 * nqpts * nmodes * nmodes * 3 * 3 * sizeof(complex_t));
+        complex_t* all_Ram_ten_twoph =
+            malloc(n_omega_2ph * 4 * nqpts * nmodes * nmodes * 3 * 3 *
+                   sizeof(complex_t));
+
+        complex_t* tmp_ten =
+            malloc(4 * nqpts * nmodes * nmodes * 3 * 3 * sizeof(complex_t));
+        memset(tmp_ten, 0,
+               4 * nqpts * nmodes * nmodes * 3 * 3 * sizeof(complex_t));
 
         // Frequencies expected in (nq, nmode)
         real_t* ph_freq_in = malloc(nqpts * nmodes * sizeof(real_t));
@@ -242,50 +254,70 @@ int main(int argc, char** argv)
 
         // Precompute minus_iq_idx for all iq
         int_type* minus_iq_arr = malloc(nqpts * sizeof(int_type));
-        for (int_type iq = 0; iq < nqpts; iq++) {
+        for (int_type iq = 0; iq < nqpts; iq++)
+        {
             double qx = -qpts[iq * 3 + 0];
             double qy = -qpts[iq * 3 + 1];
             double qz = -qpts[iq * 3 + 2];
             int_type best_idx = -1;
             double min_dist = 1e9;
-            for (int_type j = 0; j < nqpts; j++) {
+            for (int_type j = 0; j < nqpts; j++)
+            {
                 double dx = qpts[j * 3 + 0] - qx;
                 double dy = qpts[j * 3 + 1] - qy;
                 double dz = qpts[j * 3 + 2] - qz;
                 dx = dx - floor(dx + 0.5);
                 dy = dy - floor(dy + 0.5);
                 dz = dz - floor(dz + 0.5);
-                double d = dx*dx + dy*dy + dz*dz;
-                if (d < min_dist) { min_dist = d; best_idx = j; }
+                double d = dx * dx + dy * dy + dz * dz;
+                if (d < min_dist)
+                {
+                    min_dist = d;
+                    best_idx = j;
+                }
             }
             minus_iq_arr[iq] = best_idx;
         }
 
-        real_t omega_2ph[] = {1.0}; // Default in code
+        real_t omega_2ph[] = {1.0};  // Default in code
 
         for (int_type w = 0; w < n_omega_2ph; w++)
         {
             double ome_light = omega_2ph[w];
 
-            for (int_type iq = 0; iq < nqpts; iq++) {
+            for (int_type iq = 0; iq < nqpts; iq++)
+            {
                 int_type minus_iq = minus_iq_arr[iq];
 
                 complex_t* gkkp_iq = NULL;
                 complex_t* gkkp_miq = NULL;
 
                 {
-                    read_elph(ncid_elph, &gkkp_iq, iq, nqpts, nkpts_full, nmodes, nband_full_elph, elph_start_bnd, elph_end_bnd);
-                    read_elph(ncid_elph, &gkkp_miq, minus_iq, nqpts, nkpts_full, nmodes, nband_full_elph, elph_start_bnd, elph_end_bnd);
+                    read_elph(ncid_elph, &gkkp_iq, iq, nqpts, nkpts_full,
+                              nmodes, nband_full_elph, elph_start_bnd,
+                              elph_end_bnd);
+                    read_elph(ncid_elph, &gkkp_miq, minus_iq, nqpts, nkpts_full,
+                              nmodes, nband_full_elph, elph_start_bnd,
+                              elph_end_bnd);
                 }
 
                 // Scale gkkp_iq
-                for (int_type m = 0; m < nmodes; m++) {
+                for (int_type m = 0; m < nmodes; m++)
+                {
                     real_t freq = ph_freq_in[iq * nmodes + m];
-                    real_t sqrt_EPh = (freq > 1e-10) ? (1.0 / sqrt(2 * freq) * pow(0.5, 1.5)) : 0;
-                    for (int_type k = 0; k < nkpts_full; k++) {
-                        for (int_type b1 = 0; b1 < nbnds; b1++) {
-                            for (int_type b2 = 0; b2 < nbnds; b2++) {
-                                int_type idx = ((m * nkpts_full + k) * nbnds + b2) * nbnds + b1;
+                    real_t sqrt_EPh =
+                        (freq > 1e-10) ? (1.0 / sqrt(2 * freq) * pow(0.5, 1.5))
+                                       : 0;
+                    for (int_type k = 0; k < nkpts_full; k++)
+                    {
+                        for (int_type b1 = 0; b1 < nbnds; b1++)
+                        {
+                            for (int_type b2 = 0; b2 < nbnds; b2++)
+                            {
+                                int_type idx =
+                                    ((m * nkpts_full + k) * nbnds + b2) *
+                                        nbnds +
+                                    b1;
                                 gkkp_iq[idx] *= sqrt_EPh;
                             }
                         }
@@ -293,29 +325,40 @@ int main(int argc, char** argv)
                 }
 
                 // Scale gkkp_miq
-                for (int_type m = 0; m < nmodes; m++) {
+                for (int_type m = 0; m < nmodes; m++)
+                {
                     real_t freq = ph_freq_in[minus_iq * nmodes + m];
-                    real_t sqrt_EPh = (freq > 1e-10) ? (1.0 / sqrt(2 * freq) * pow(0.5, 1.5)) : 0;
-                    for (int_type k = 0; k < nkpts_full; k++) {
-                        for (int_type b1 = 0; b1 < nbnds; b1++) {
-                            for (int_type b2 = 0; b2 < nbnds; b2++) {
-                                int_type idx = ((m * nkpts_full + k) * nbnds + b2) * nbnds + b1;
+                    real_t sqrt_EPh =
+                        (freq > 1e-10) ? (1.0 / sqrt(2 * freq) * pow(0.5, 1.5))
+                                       : 0;
+                    for (int_type k = 0; k < nkpts_full; k++)
+                    {
+                        for (int_type b1 = 0; b1 < nbnds; b1++)
+                        {
+                            for (int_type b2 = 0; b2 < nbnds; b2++)
+                            {
+                                int_type idx =
+                                    ((m * nkpts_full + k) * nbnds + b2) *
+                                        nbnds +
+                                    b1;
                                 gkkp_miq[idx] *= sqrt_EPh;
                             }
                         }
                     }
                 }
 
-                compute_Raman_twoph_iq(tmp_ten, ome_light, ph_freq_in, Qp_ene,
-                                       dipoles_full, gkkp_iq, gkkp_miq, kpts, qpts,
-                                       iq, minus_iq, CellVol, conf.broading, 3, nkpts_full, nc, nv, nmodes, nqpts);
+                compute_Raman_twoph_iq(
+                    tmp_ten, ome_light, ph_freq_in, Qp_ene, dipoles_full,
+                    gkkp_iq, gkkp_miq, kpts, qpts, iq, minus_iq, CellVol,
+                    conf.broading, 3, nkpts_full, nc, nv, nmodes, nqpts);
 
                 free(gkkp_iq);
                 free(gkkp_miq);
-            } // end parallel for iq
+            }  // end parallel for iq
 
             // Now add q and -q terms
-            complex_t* current_Ram_ten = &all_Ram_ten_twoph[w * 4 * nqpts * nmodes * nmodes * 3 * 3];
+            complex_t* current_Ram_ten =
+                &all_Ram_ten_twoph[w * 4 * nqpts * nmodes * nmodes * 3 * 3];
             for (int_type iq = 0; iq < nqpts; iq++)
             {
                 int_type minus_iq_idx = minus_iq_arr[iq];
@@ -328,17 +371,67 @@ int main(int argc, char** argv)
                         {
                             for (int_type pol2 = 0; pol2 < 3; pol2++)
                             {
-                                int_type idx0 = ((((0 * nqpts + iq) * nmodes + il) * nmodes + jl) * 3 + pol1) * 3 + pol2;
-                                int_type mq_idx0 = ((((0 * nqpts + minus_iq_idx) * nmodes + jl) * nmodes + il) * 3 + pol1) * 3 + pol2;
-                                current_Ram_ten[idx0] = (tmp_ten[idx0] + tmp_ten[mq_idx0]) * (1.0 / sqrt(2.0));
+                                int_type idx0 =
+                                    ((((0 * nqpts + iq) * nmodes + il) *
+                                          nmodes +
+                                      jl) *
+                                         3 +
+                                     pol1) *
+                                        3 +
+                                    pol2;
+                                int_type mq_idx0 =
+                                    ((((0 * nqpts + minus_iq_idx) * nmodes +
+                                       jl) *
+                                          nmodes +
+                                      il) *
+                                         3 +
+                                     pol1) *
+                                        3 +
+                                    pol2;
+                                current_Ram_ten[idx0] =
+                                    (tmp_ten[idx0] + tmp_ten[mq_idx0]) *
+                                    (1.0 / sqrt(2.0));
 
-                                int_type idx1 = ((((1 * nqpts + iq) * nmodes + il) * nmodes + jl) * 3 + pol1) * 3 + pol2;
-                                int_type mq_idx1 = ((((1 * nqpts + minus_iq_idx) * nmodes + jl) * nmodes + il) * 3 + pol1) * 3 + pol2;
-                                current_Ram_ten[idx1] = (tmp_ten[idx1] + tmp_ten[mq_idx1]) * (1.0 / sqrt(2.0));
+                                int_type idx1 =
+                                    ((((1 * nqpts + iq) * nmodes + il) *
+                                          nmodes +
+                                      jl) *
+                                         3 +
+                                     pol1) *
+                                        3 +
+                                    pol2;
+                                int_type mq_idx1 =
+                                    ((((1 * nqpts + minus_iq_idx) * nmodes +
+                                       jl) *
+                                          nmodes +
+                                      il) *
+                                         3 +
+                                     pol1) *
+                                        3 +
+                                    pol2;
+                                current_Ram_ten[idx1] =
+                                    (tmp_ten[idx1] + tmp_ten[mq_idx1]) *
+                                    (1.0 / sqrt(2.0));
 
-                                int_type idx2 = ((((2 * nqpts + iq) * nmodes + il) * nmodes + jl) * 3 + pol1) * 3 + pol2;
-                                int_type mq_idx3 = ((((3 * nqpts + minus_iq_idx) * nmodes + jl) * nmodes + il) * 3 + pol1) * 3 + pol2;
-                                current_Ram_ten[idx2] = (tmp_ten[idx2] + tmp_ten[mq_idx3]);
+                                int_type idx2 =
+                                    ((((2 * nqpts + iq) * nmodes + il) *
+                                          nmodes +
+                                      jl) *
+                                         3 +
+                                     pol1) *
+                                        3 +
+                                    pol2;
+                                int_type mq_idx3 =
+                                    ((((3 * nqpts + minus_iq_idx) * nmodes +
+                                       jl) *
+                                          nmodes +
+                                      il) *
+                                         3 +
+                                     pol1) *
+                                        3 +
+                                    pol2;
+                                current_Ram_ten[idx2] =
+                                    (tmp_ten[idx2] + tmp_ten[mq_idx3]);
                             }
                         }
                     }
@@ -347,11 +440,21 @@ int main(int argc, char** argv)
         }
 
         // Save to NetCDF
-        write_nc_real_1d(ncid_out, "2ph_light_omega_eV", "n_omega_2ph", omega_2ph, n_omega_2ph);
-        
-        const char* dims_2ph[] = {"n_omega_2ph", "n_processes", "nqpts", "nmodes", "nmodes", "pol1", "pol2"};
-        size_t sizes_2ph[] = {(size_t)n_omega_2ph, 4, (size_t)nqpts, (size_t)nmodes, (size_t)nmodes, 3, 3};
-        write_nc_complex_nd(ncid_out, "2ph_Raman_tensor", 7, dims_2ph, sizes_2ph, all_Ram_ten_twoph);
+        write_nc_real_1d(ncid_out, "2ph_light_omega_eV", "n_omega_2ph",
+                         omega_2ph, n_omega_2ph);
+
+        const char* dims_2ph[] = {"n_omega_2ph", "n_processes", "nqpts",
+                                  "nmodes",      "nmodes",      "pol1",
+                                  "pol2"};
+        size_t sizes_2ph[] = {(size_t)n_omega_2ph,
+                              4,
+                              (size_t)nqpts,
+                              (size_t)nmodes,
+                              (size_t)nmodes,
+                              3,
+                              3};
+        write_nc_complex_nd(ncid_out, "2ph_Raman_tensor", 7, dims_2ph,
+                            sizes_2ph, all_Ram_ten_twoph);
 
         free(all_Ram_ten_twoph);
         free(ph_freq_in);
