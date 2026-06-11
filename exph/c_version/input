@@ -1,0 +1,10 @@
+SAVE_dir = /Users/murali/phd/one_phonon_raman/hbn/test_hbn/GW_BSE/symm/hBN.save/SAVE
+elph_file = /Users/murali/phd/one_phonon_raman/hbn/test_hbn/GW_BSE/symm/gw_bse/ndb.elph
+Dmat_file = /Users/murali/phd/one_phonon_raman/hbn/test_hbn/GW_BSE/symm/gw_bse/ndb.Dmats
+dipole_file = /Users/murali/phd/one_phonon_raman/hbn/test_hbn/GW_BSE/symm/gw_bse/ndb.dipoles
+omega_one_ph_range = 0.001 4 10
+broading = 0.01
+npol = 3
+bands = 5 12
+one_ph = 1
+two_ph = 1
