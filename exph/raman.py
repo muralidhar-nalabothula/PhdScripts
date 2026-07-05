@@ -580,11 +580,6 @@ def compute_Raman_twoph_iq(ome_light,
         return twoph_raman_ten[:3]
 
 
-#
-#
-# 2ph raman with excitonic effects
-
-
 @njit(cache=True, nogil=True)
 def two_ph_raman_exc_numba_kernel(iq, N_ome, nmode, npol, N_q, N_mq,
                                   ome_light_arr, ph_freq_q, ph_freq_mq,
@@ -776,8 +771,7 @@ def compute_two_ph_raman_exc(ome_light,
     ph_freq_mq = ph_freq_q[idx_mq]
     ex_ene_mq = ex_ene_q[idx_mq]
     g_0_mq = g_0_q[idx_mq]
-    g_q_mq = np.empty_like(g_mq_q)
-    g_q_mq[idx_mq] = g_mq_q
+    g_q_mq = g_mq_q[idx_mq]
     is_scalar_ome = np.isscalar(ome_light) or np.ndim(ome_light) == 0
     ome_light_arr = np.atleast_1d(ome_light)
     prec = str(precision).strip().lower()

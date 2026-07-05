@@ -329,7 +329,7 @@ if two_ph_raman:
     ele_dips_raman = get_dipoles(bs_bands,
                                  nvalance_bnds,
                                  dip_file=dipole_file,
-                                 var='DIP_iR')
+                                 var='DIP_v')
     exc_dipoles = exe_dipoles(ele_dips_raman, Gamma_wfcs, kmap, symm_mats,
                               ele_time_rev).conj()
 
