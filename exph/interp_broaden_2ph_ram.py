@@ -3,11 +3,23 @@ from scipy.interpolate import RegularGridInterpolator
 import sys
 from netCDF4 import Dataset
 from yambopy.kpoints import build_ktree, find_kpt
+from numba import njit, prange
 
+@njit(parallel=True)
 def get_broadened_spectrum(x_axis, peak_centers, peak_intensities, gamma=1.0):
     spectrum = np.zeros_like(x_axis)
-    for w, I in zip(peak_centers, peak_intensities):
-        spectrum += I * (gamma / np.pi) / ((x_axis - w)**2 + gamma**2)
+    n_x = len(x_axis)
+    n_peaks = len(peak_centers)
+    
+    for j in prange(n_x):
+        x = x_axis[j]
+        s = 0.0
+        for i in range(n_peaks):
+            w = peak_centers[i]
+            I = peak_intensities[i]
+            s += I * (gamma / np.pi) / ((x - w)**2 + gamma**2)
+        spectrum[j] = s
+        
     return spectrum
 
 def main():
