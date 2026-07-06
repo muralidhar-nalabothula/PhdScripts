@@ -1,0 +1,171 @@
+import numpy as np
+from scipy.interpolate import RegularGridInterpolator
+import sys
+from netCDF4 import Dataset
+from yambopy.kpoints import build_ktree, find_kpt
+
+def get_broadened_spectrum(x_axis, peak_centers, peak_intensities, gamma=1.0):
+    spectrum = np.zeros_like(x_axis)
+    for w, I in zip(peak_centers, peak_intensities):
+        spectrum += I * (gamma / np.pi) / ((x_axis - w)**2 + gamma**2)
+    return spectrum
+
+def bose(energy_hartree, T=20):
+    if T == 0:
+        return np.zeros_like(energy_hartree)
+    kb = 8.617333262145e-5 # eV/K
+    energy_ev = energy_hartree * 27.21111
+    x = energy_ev / (kb * T)
+    x = np.clip(x, 1e-10, 700)
+    return 1.0 / (np.exp(x) - 1.0)
+
+def main():
+    if len(sys.argv) < 7:
+        print("Usage: python script.py raman_results.npz ndb.elph output_prefix ref_x ref_y ref_z")
+        sys.exit(1)
+
+    input_file = sys.argv[1]
+    qpoints_file = sys.argv[2]
+    output_prefix = sys.argv[3]
+    refinementx = int(sys.argv[4])
+    refinementy = int(sys.argv[5])
+    refinementz = int(sys.argv[6])
+
+    data = np.load(input_file)
+    two_ph_raman = data['2ph_Raman_tensor']
+    freq_ram = data['2ph_ph_freq_cm-1']
+    omega_light = data['2ph_light_omega_eV']
+    
+    elph = Dataset(qpoints_file,'r')
+    qpoints = elph['qpoints'][...].data
+    # Read the actual single-phonon frequencies for Bose factors (in Hartree)
+    ph_freq_orig = np.abs(elph['FREQ'][...].data) * 0.5 
+    elph.close()
+
+    xpol = np.array([1, 1j, 0])
+    I_co = np.abs(np.einsum('...ij,i,j->...', two_ph_raman, xpol, np.conj(xpol)))**2
+    I_cross = np.abs(np.einsum('...ij,i,j->...', two_ph_raman, xpol, xpol))**2
+
+    nq_orig = len(qpoints)
+    q_axis_I = I_co.shape.index(nq_orig)
+    q_axis_freq = freq_ram.shape.index(nq_orig)
+
+    branch_axis_freq = [i for i, dim in enumerate(freq_ram.shape) if dim == 3 and i != q_axis_freq][0]
+    branch_axis_I = [i for i, dim in enumerate(I_co.shape) if dim == 3 and i != q_axis_I and i != 0][0]
+
+    tol = 1e-5
+    qpoints = qpoints - np.floor(qpoints)
+    qpoints = (qpoints + tol) % 1 - tol
+
+    max_q = np.max(qpoints, axis=0)
+    grid_dims = np.ones(3, dtype=int)
+    for i in range(3):
+        if max_q[i] > tol:
+            grid_dims[i] = int(np.rint(1.0 / (1.0 - max_q[i])))
+
+    nx, ny, nz = grid_dims
+    tmp1 = np.arange(nx) / nx
+    tmp2 = np.arange(ny) / ny
+    tmp3 = np.arange(nz) / nz
+    tmp_qpt = np.zeros((nx,ny,nz,3),dtype=float)
+    tmp_qpt[...,0], tmp_qpt[...,1], tmp_qpt[...,2] = np.meshgrid(tmp1, tmp2, tmp3, indexing='ij')
+    qpoints_tree = build_ktree(qpoints)
+    indices = find_kpt(qpoints_tree, tmp_qpt) 
+
+    I_co_q_first = np.moveaxis(I_co, q_axis_I, 0)
+    I_cross_q_first = np.moveaxis(I_cross, q_axis_I, 0)
+    freq_q_first = np.moveaxis(freq_ram, q_axis_freq, 0)
+
+    I_co_grid = I_co_q_first[indices, ...].reshape((nx, ny, nz) + I_co_q_first.shape[1:])
+    I_cross_grid = I_cross_q_first[indices, ...].reshape((nx, ny, nz) + I_cross_q_first.shape[1:])
+    freq_grid = freq_q_first[indices, ...].reshape((nx, ny, nz) + freq_q_first.shape[1:])
+    
+    # Interpolate bare phonon frequencies for Bose factors
+    ph_freq_grid = ph_freq_orig[indices, ...].reshape((nx, ny, nz) + ph_freq_orig.shape[1:])
+
+    interp_I_co = RegularGridInterpolator((tmp1, tmp2, tmp3), I_co_grid, bounds_error=False, fill_value=None)
+    interp_I_cross = RegularGridInterpolator((tmp1, tmp2, tmp3), I_cross_grid, bounds_error=False, fill_value=None)
+    interp_freq = RegularGridInterpolator((tmp1, tmp2, tmp3), freq_grid, bounds_error=False, fill_value=None)
+    interp_ph_freq = RegularGridInterpolator((tmp1, tmp2, tmp3), ph_freq_grid, bounds_error=False, fill_value=None)
+
+    nx_fine = nx * refinementx if nx > 1 else 1
+    ny_fine = ny * refinementy if ny > 1 else 1
+    nz_fine = nz * refinementz if nz > 1 else 1
+
+    qx_fine = np.linspace(0, (nx - 1) / nx, nx_fine)
+    qy_fine = np.linspace(0, (ny - 1) / ny, ny_fine)
+    qz_fine = np.linspace(0, (nz - 1) / nz, nz_fine)
+    QX, QY, QZ = np.meshgrid(qx_fine, qy_fine, qz_fine, indexing='ij')
+    qpoints_fine = np.vstack([QX.ravel(), QY.ravel(), QZ.ravel()]).T
+
+    I_co_fine = interp_I_co(qpoints_fine)
+    I_cross_fine = interp_I_cross(qpoints_fine)
+    freq_fine = interp_freq(qpoints_fine)
+    ph_freq_fine = interp_ph_freq(qpoints_fine) # Shape: (nq_fine, nmode)
+
+    expansion_factor = (refinementx * refinementy * refinementz)
+    I_co_fine /= expansion_factor
+    I_cross_fine /= expansion_factor
+
+    I_co_fine_restored = np.moveaxis(I_co_fine, 0, q_axis_I)
+    I_cross_fine_restored = np.moveaxis(I_cross_fine, 0, q_axis_I)
+    freq_fine_restored = np.moveaxis(freq_fine, 0, q_axis_freq)
+        
+    freq_fine_cm = freq_fine_restored
+
+    all_shifts = freq_fine_cm.flatten()
+    x_min = np.min(all_shifts) - 0.05
+    x_max = np.max(all_shifts) + 0.05
+    x_axis = np.linspace(x_min, x_max, 4000)
+
+    # Pre-calculate Bose-Einstein Intensity multipliers on the fine grid (T = 20 K by default)
+    Temp = 20
+    n_q_fine = np.abs(bose(ph_freq_fine, T=Temp))
+    
+    # Shape of B_factor: (nq_fine, nmode, nmode)
+    B_AA = n_q_fine[:, :, None] * n_q_fine[:, None, :]                  # Absorb-Absorb
+    B_EA = (n_q_fine[:, :, None] + 1.0) * n_q_fine[:, None, :]          # Emit-Absorb
+    B_EE = (n_q_fine[:, :, None] + 1.0) * (n_q_fine[:, None, :] + 1.0)  # Emit-Emit
+
+    for i_ome in range(len(omega_light)):
+        print(f"Processing omega_light = {omega_light[i_ome]}")
+        
+        spectra_co = {'AA': None, 'EA': None, 'EE': None}
+        spectra_cross = {'AA': None, 'EA': None, 'EE': None}
+        
+        for branch_idx, branch_name in enumerate(['AA', 'EA', 'EE']):
+            I_co_branch = np.take(I_co_fine_restored[i_ome], branch_idx, axis=branch_axis_I - 1)
+            I_cross_branch = np.take(I_cross_fine_restored[i_ome], branch_idx, axis=branch_axis_I - 1)
+            freq_branch = np.take(freq_fine_cm, branch_idx, axis=branch_axis_freq)
+            
+            # Apply corresponding Bose factor to the intensities BEFORE flattening
+            # I_co_branch has shape (nq_fine, nmode, nmode)
+            if branch_name == 'AA':
+                I_co_branch = I_co_branch * B_AA
+                I_cross_branch = I_cross_branch * B_AA
+            elif branch_name == 'EA':
+                I_co_branch = I_co_branch * B_EA
+                I_cross_branch = I_cross_branch * B_EA
+            elif branch_name == 'EE':
+                I_co_branch = I_co_branch * B_EE
+                I_cross_branch = I_cross_branch * B_EE
+            
+            w = freq_branch.flatten()
+            i_c = I_co_branch.flatten()
+            i_x = I_cross_branch.flatten()
+            
+            spectra_co[branch_name] = get_broadened_spectrum(x_axis, w, i_c, gamma=1.0)
+            spectra_cross[branch_name] = get_broadened_spectrum(x_axis, w, i_x, gamma=1.0)
+
+        full_co = spectra_co['AA'] + spectra_co['EA'] + spectra_co['EE']
+        full_cross = spectra_cross['AA'] + spectra_cross['EA'] + spectra_cross['EE']
+
+        header = "Shift(cm-1) Full EE(Stokes) AA(Anti-Stokes) EA(Mixed)  (Calculated at T=20K)"
+        out_co = np.c_[-x_axis, full_co, spectra_co['EE'], spectra_co['AA'], spectra_co['EA']]
+        out_cross = np.c_[-x_axis, full_cross, spectra_cross['EE'], spectra_cross['AA'], spectra_cross['EA']]
+        
+        np.savetxt(f"{output_prefix}_ome_{i_ome}_co.txt", out_co, header=header)
+        np.savetxt(f"{output_prefix}_ome_{i_ome}_cross.txt", out_cross, header=header)
+
+if __name__ == "__main__":
+    main()
