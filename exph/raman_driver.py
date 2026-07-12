@@ -12,7 +12,6 @@ from exph_precision import *
 # SAVE_dir = '../bse/SAVE'
 # BSE_dir  = '../bse/bse2Ry'
 # elph_file = '../elph/ndb.elph'
-# Dmat_file = '../elph/ndb.Dmats'
 # nstates = 12000
 # Raman = True ## compute luminescence if set to true
 # Exph = True
@@ -24,21 +23,17 @@ from exph_precision import *
 SAVE_dir = '../bse/SAVE'
 BSE_dir = '../bse/bse2Ry'
 elph_file = '../elph/ndb.elph'
-Dmat_file = '../elph/ndb.Dmats'
 nstates = 12000
 Raman = True  ## compute luminescence if set to true
 Exph = True
 ome_range = [1.2, 2.2, 10000]  ## (min max, numpoints)
 broading = 0.01  # in eV
-npol = 2
-modes = [
-    58, 71, 72
-]  #[121,122,123,124] # in empty all modes are computed, indexing start with 1
+npol = 3
+modes = []  #[121,122,123,124] # in empty all modes are computed, indexing start with 1
 
 # SAVE_dir = '../gw_bse/SAVE'
 # BSE_dir  = '../gw_bse/GW_BSE'
 # elph_file = '../ndb.elph'
-# Dmat_file = '../ndb.Dmats'
 # nstates = 1000
 # Raman = True ## compute luminescence if set to true
 # Exph = True
@@ -52,7 +47,6 @@ modes = [
 # SAVE_dir = calc_folder + '/si.save/SAVE'
 # BSE_dir  = calc_folder + '/si.save/bse'
 # elph_file =calc_folder + '/ndb.elph'
-# Dmat_file =calc_folder + '/ndb.Dmats'
 # nstates = 100
 # Raman = True ## compute luminescence if set to true
 # Exph = True  ## compute excion phonon at Gamman
@@ -71,8 +65,8 @@ bs_bands, BS_eigs, BS_wfcs = read_bse_eig(BSE_dir, neig=nstates)
 
 print('Reading Phonon Data')
 elph_file = Dataset(elph_file, 'r')
-ph_sym, ph_time_rev, kpts, kmap, qpts, qmap, ph_freq, stard_conv, \
-    elph_bnds_range, Dmats = get_ph_data(bs_bands, elph_file, Dmat_file)
+kpts, kmap, qpts, qmap, ph_freq, stard_conv, \
+    elph_bnds_range = get_ph_data(bs_bands, elph_file)
 
 print('Total phonon modes:', ph_freq.shape[1])
 if (len(modes) != 0):
