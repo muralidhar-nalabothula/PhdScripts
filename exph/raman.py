@@ -47,9 +47,10 @@ def compute_Raman_oneph_exc_numba(ome_light_arr, ph_freq, BS_energies,
             term1 = dipS_res_conj @ ex_ph_T @ dipSp_res_T_conj
             term1 = np.conj(term1)
 
-            # 2) Compute the anti-resonant term
-            dipSp_ares_T = dipSp_ares.T
-            term2 = dipS_ares @ ex_ph_T @ dipSp_ares_T
+            # # 2) Compute the anti-resonant term
+            # dipSp_ares_T = dipSp_ares.T
+            # term2 = dipS_ares @ ex_ph_T @ dipSp_ares_T
+            term2 = 0.0*term1 
 
             # Scale to get the final Raman tensor
             scale = np.sqrt(
@@ -580,6 +581,103 @@ def compute_Raman_twoph_iq(ome_light,
         return twoph_raman_ten[:3]
 
 
+
+def compute_two_ph_debye_exc(ome_light,
+                             ph_freq_q,
+                             ph_freq_mq,
+                             ex_ene_0,
+                             ex_dip,
+                             exph_debye,
+                             pol_vec_q,
+                             pol_vec_mq,
+                             broading=0.1,
+                             npol=3,
+                             ph_fre_th=5,
+                             precision='s'):
+    """
+    Computes the Debye-Waller two-phonon Raman tensor using excitonic states,
+    by mapping the 2-phonon topologies directly onto the 1-phonon Numba kernel.
+    
+    Processes calculated:
+    0: Anti-Stokes (AA) - Absorbs two phonons
+    1: Mixed (AE)       - Absorbs one, Emits one
+    2: Stokes (EE)      - Emits two phonons
+    """
+    # 1. Formatting and Precision Setup
+    is_scalar_ome = np.isscalar(ome_light) or np.ndim(ome_light) == 0
+    ome_light_arr = np.atleast_1d(ome_light)
+    
+    prec = str(precision).strip().lower()
+    if prec in ['s', 'single']:
+        f_type = np.float32
+        c_type = np.complex64
+    elif prec in ['d', 'double']:
+        f_type = np.float64
+        c_type = np.complex128
+    else:
+        raise ValueError("Unknown precision: use 's' for single or 'd' for double.")
+
+    Nqpts, nmode = ph_freq_q.shape
+    N_exc = ex_dip.shape[1]
+
+    omegaq_inv  = np.where(ph_freq_q >  2e-5, 1.0 / np.sqrt(2.0 * ph_freq_q), 0.0)
+    omegamq_inv = np.where(ph_freq_mq > 2e-5, 1.0 / np.sqrt(2.0 * ph_freq_mq), 0.0)
+
+    pol_vec_mq_tmp = pol_vec_mq * omegamq_inv[:,:,None,None]
+    pol_vec_q_tmp = pol_vec_q  * omegaq_inv[:,:,None,None]
+    #
+    W_AA = np.einsum('qlka, qmkb, kabij -> qlmij',
+                     pol_vec_mq_tmp, pol_vec_q_tmp, exph_debye, optimize=True)
+    
+    W_EE = np.einsum('qlka, qmkb, kabij -> qlmij',
+                     np.conj(pol_vec_q_tmp), np.conj(pol_vec_mq_tmp), exph_debye, optimize=True)
+    
+    W_AE = np.einsum('qlka, qmkb, kabij -> qlmij',
+                     np.conj(pol_vec_q_tmp), pol_vec_q_tmp, exph_debye, optimize=True)
+
+    W_tensor = np.zeros((3, Nqpts, nmode, nmode, N_exc, N_exc), dtype=c_type)
+    W_tensor[0] = W_AA * (1.0 / np.sqrt(2))
+    W_tensor[1] = W_AE
+    W_tensor[2] = W_EE * (1.0 / np.sqrt(2))
+
+    ph_freq_shift = np.zeros((3, Nqpts, nmode, nmode), dtype=f_type)
+    ph_freq_shift[0, :, :, :] = ph_freq_mq[:, :, None] + ph_freq_q[:, None, :]
+    ph_freq_shift[1, :, :, :] = -ph_freq_q[:, :, None] + ph_freq_q[:, None, :]
+    ph_freq_shift[2, :, :, :] = -ph_freq_q[:, :, None] - ph_freq_mq[:, None, :]
+
+    # We conj and transpose beaucase this is done so we need to undo
+    W_flat = W_tensor.reshape(-1, N_exc, N_exc).transpose(0,2,1).conj()
+    ph_freq_flat = -ph_freq_shift.reshape(-1) ## ## we alreayd have a negation in one-ph function
+    # to counter that we need to pass the negative freq to compensate that.
+
+    ome_light_Ha = ome_light_arr / 27.211
+    broading_Ha = broading / 27.211 / 2.0
+    ph_fre_th_Ha = ph_fre_th * 0.12398 / 1000 / 27.211
+    
+    ram_fac = 1.0
+    ex_dip_absorp = np.conj(ex_dip[:npol, :])
+    BS_energies = ex_ene_0 - 1j * broading_Ha
+
+    # 7. Convert to C-contiguous for Numba
+    ome_light_c = np.ascontiguousarray(ome_light_Ha, dtype=f_type)
+    ph_freq_flat_c = np.ascontiguousarray(ph_freq_flat, dtype=f_type)
+    BS_energies_c = np.ascontiguousarray(BS_energies, dtype=c_type)
+    ex_dip_absorp_c = np.ascontiguousarray(ex_dip_absorp, dtype=c_type)
+    W_flat_c = np.ascontiguousarray(W_flat, dtype=c_type)
+
+    Ram_ten_flat = compute_Raman_oneph_exc_numba(
+        ome_light_c, ph_freq_flat_c, BS_energies_c, 
+        ex_dip_absorp_c, W_flat_c, ram_fac, ph_fre_th_Ha
+    )
+
+    N_ome = len(ome_light_arr)
+    Ram_ten = Ram_ten_flat.reshape(N_ome, 3, Nqpts, nmode, nmode, 3, 3)
+    Ram_ten = Ram_ten.transpose(0, 2, 1, 3, 4, 5, 6)
+    Ram_ten = Ram_ten[..., :npol, :npol]
+
+    return Ram_ten
+
+
 @njit(cache=True, nogil=True)
 def two_ph_raman_exc_numba_kernel(iq, N_ome, nmode, npol, N_q, N_mq,
                                   ome_light_arr, ph_freq_q, ph_freq_mq,
@@ -762,7 +860,7 @@ def compute_two_ph_raman_exc(ome_light,
                              g_0_q,
                              g_mq_q,
                              gamma=0.01,
-                             precision='s'):
+                             precision='s',debye=None, pol_vecs_q=None):
     #// gamma nad ome_light are in eV
     gamma = gamma / 27.2111
     ome_light = ome_light / 27.21111
@@ -809,6 +907,20 @@ def compute_two_ph_raman_exc(ome_light,
     M_tensor[:, :, 0, ...] *= 1 / np.sqrt(2)
     M_tensor[:, :, 2, ...] *= 1 / np.sqrt(2)
     #
+    if debye is not None:
+        M_tensor += compute_two_ph_debye_exc(ome_light,
+                             ph_freq_q,
+                             ph_freq_mq,
+                             ex_ene_0,
+                             ex_dip,
+                             debye,
+                             pol_vecs_q,
+                             pol_vecs_q[idx_mq],
+                             broading=gamma,
+                             npol=3,
+                             ph_fre_th=2,
+                             precision=precision)
+    #
     Nqpts, nmode = ph_freq_q_c.shape
     raman_shift_freq = np.zeros((Nqpts, 3, nmode, nmode), dtype=f_type)
     # Process 0: Anti-Stokes (+omega_mq_l + omega_q_lam)
@@ -822,7 +934,7 @@ def compute_two_ph_raman_exc(ome_light,
     raman_shift_freq[:,
                      2, :, :] = -ph_freq_q_c[:, :, None] - ph_freq_mq_c[:,
                                                                         None, :]
-
+    
     if is_scalar_ome:
         return raman_shift_freq, M_tensor[0]
     return raman_shift_freq, M_tensor

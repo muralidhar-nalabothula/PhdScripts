@@ -96,7 +96,7 @@ def compute_debye_exph(SAVE_folder, BSE_dir, elph_file, nexc):
     kvec = np.zeros(3)
     Ak = excdb.get_Akcv()
     exph_debye = exciton_X_matelem(kvec, kvec, Ak, Ak, Dwaller, kpoints)
-    return exph_debye.transpose(0,2,1)
+    return exph_debye.transpose(0,2,1).reshape(natom,3,3,nexc,nexc)
 
 
 SAVE_folder = 'SAVE'

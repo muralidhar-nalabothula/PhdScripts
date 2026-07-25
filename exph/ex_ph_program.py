@@ -15,6 +15,7 @@ from yambopy.dbs.wfdb import YamboWFDB
 from yambopy.tools.funcs import bose
 from lifetimes_exph import interpolate_and_compute_lifetimes
 import os
+from debye import compute_debye_exph
 """
 # Example input file
 calc_folder: "../../"
@@ -35,6 +36,7 @@ kcentre:
 npol: 3
 exph_lifetimes : False
 interpolate_grid_lifetimes : []
+debye_elph : ''
 """
 # --- Read input file ---
 if len(sys.argv) < 2:
@@ -63,6 +65,7 @@ kcentre = params.get("kcentre", [])
 npol = params.get("npol", 3)
 exph_lifetimes = params.get("exph_lifetimes", False)
 interpolate_grid_lifetimes = params.get("interpolate_grid_lifetimes", [])
+debye_elph = params.get("debye_elph",'')
 #
 ## read the lattice data
 print('*' * 30, ' Program started ', '*' * 30)
@@ -86,6 +89,7 @@ print(f"kcentre     : {kcentre}")
 print(f"npol        : {npol}")
 print(f"exph_lifetimes: {exph_lifetimes}")
 print(f"interpolate_grid_lifetimes: {interpolate_grid_lifetimes}")
+print(f"debye_elph  : {debye_elph}")
 print("============================\n")
 #
 print('Reading Lattice data')
@@ -248,6 +252,8 @@ else:
 # Ex-ph g(0,q)
 # Ex-ph2 g(-q,q)
 
+pol_vecs_q = elph_file['POLARIZATION_VECTORS'][...].data
+pol_vecs_q = pol_vecs_q[...,0] + 1j*pol_vecs_q[...,1]
 ## close el-ph file
 elph_file.close()
 ## compute Lumenscence
@@ -333,6 +339,10 @@ if two_ph_raman:
     exc_dipoles = exe_dipoles(ele_dips_raman, Gamma_wfcs, kmap, symm_mats,
                               ele_time_rev).conj()
 
+    debye = None
+    if debye_elph != '':
+        print('Computing debye...')
+        debye = compute_debye_exph(SAVE_dir, BSE_dir, debye_elph, nexc=nstates_gamma)
     freq_ram, two_ph_raman = compute_two_ph_raman_exc(ome_range,
                                                       qpts,
                                                       ph_energies,
@@ -342,7 +352,7 @@ if two_ph_raman:
                                                       ex_ph,
                                                       ex_ph2,
                                                       gamma=broading,
-                                                      precision='s')
+                                                      precision='s',debye=debye,pol_vecs_q=pol_vecs_q)
 
     two_ph_raman *= (1.0 / len(kpts))
     # Intensity_tensor = np.abs(M_tensor)**2
