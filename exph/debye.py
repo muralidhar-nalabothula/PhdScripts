@@ -23,10 +23,9 @@ def compute_second_derivative_gemm(h_nl: np.ndarray,
     # Everything in Ry units
     Returns:
     D_matrix : (natom, 3, 3, nk, N_n, N_m)  < nk | ddV} mk>
-    $$\langle n\mathbf{k} | \partial^2_{\kappa\alpha, \kappa\beta} V | m\mathbf{k} \rangle =
-    - \sum_{l \neq n,m}^{N_{bands}} h_{nl}^{\kappa\alpha}(\mathbf{k}) h_{lm}^{\kappa\beta}(\mathbf{k})
-    \left( \frac{1}{\varepsilon_{n\mathbf{k}} - \varepsilon_{l\mathbf{k}}} +
-    \frac{1}{\varepsilon_{m\mathbf{k}} - \varepsilon_{l\mathbf{k}}} \right)$$
+    $$\langle n \vert{} \frac{\partial^2 V_{scf}}{\partial u_{\kappa\alpha} \partial u_{\kappa\beta}} \vert{} m \rangle = - \sum_{l \neq n,m} \left( \frac{h_{nl}^\alpha h_{lm}^\beta}{E_n - E_l} + \frac{h_{nl}^\beta h_{lm}^\alpha}{E_m - E_l} \right)$$
+    with 
+    $$h_{nl}^{\alpha} = \langle n \vert{} \frac{\partial V_{scf}}{\partial u_{\kappa\alpha}} \vert{} l \rangle =  \langle n \vert{} \partial_\alpha V_\kappa \vert{} l \rangle$$
     """
     diff_nl = E_n[:, :, None] - E_l[:, None, :]
     inv_diff_nl = np.zeros_like(diff_nl)
@@ -49,7 +48,8 @@ def compute_second_derivative_gemm(h_nl: np.ndarray,
     A2_batch = A2_mat[:, :, None, :, :, :]
     B2_batch = B2_mat[:, None, :, :, :, :]
     C2 = A2_batch @ B2_batch
-    return -(C1 + C2)
+    # transpose(0, 2, 1, 3, 4, 5) swaps the alpha and beta Cartesian axes of C2
+    return -(C1 + C2.transpose(0, 2, 1, 3, 4, 5))
 
 
 def compute_debye_exph(SAVE_folder, BSE_dir, elph_file, nexc):
