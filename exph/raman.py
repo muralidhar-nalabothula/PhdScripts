@@ -135,9 +135,8 @@ def compute_Raman_twoph_debye_numba(ome_light_arr, ph_freq_shift, BS_energies,
                         term1 = dipS_res_conj_arr[i_ome] @ ex_ph_T @ dipSp_res_T_conj
                         term1 = np.conj(term1)
 
-                        term2 = 0.0 * term1 
                         scale = np.sqrt(np.abs(ome_light_Ha + freq) / ome_light_Ha) * ram_fac
-                        Ram_ten[i_ome, iq, proc, il, jl, :npol, :npol] = (term1 + term2) * scale
+                        Ram_ten[i_ome, iq, proc, il, jl, :npol, :npol] = term1  * scale
 
     return Ram_ten
 
