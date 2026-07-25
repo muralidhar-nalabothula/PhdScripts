@@ -48,9 +48,8 @@ def compute_Raman_oneph_exc_numba(ome_light_arr, ph_freq, BS_energies,
             term1 = np.conj(term1)
 
             # # 2) Compute the anti-resonant term
-            # dipSp_ares_T = dipSp_ares.T
-            # term2 = dipS_ares @ ex_ph_T @ dipSp_ares_T
-            term2 = 0.0*term1 
+            dipSp_ares_T = dipSp_ares.T
+            term2 = dipS_ares @ ex_ph_T @ dipSp_ares_T
 
             # Scale to get the final Raman tensor
             scale = np.sqrt(
@@ -59,6 +58,88 @@ def compute_Raman_oneph_exc_numba(ome_light_arr, ph_freq, BS_energies,
 
     return Ram_ten
 
+
+@njit(cache=True, nogil=True, parallel=True)
+def compute_Raman_twoph_debye_numba(ome_light_arr, ph_freq_shift, BS_energies,
+                                    ex_dip_absorp, pol_vec_mq, pol_vec_q, exph_debye, ram_fac, ph_fre_th):
+
+    N_ome = len(ome_light_arr)
+    Nqpts = pol_vec_mq.shape[0]
+    nmode = pol_vec_mq.shape[1]
+    K = pol_vec_mq.shape[2]
+    A = pol_vec_mq.shape[3]
+    B = pol_vec_q.shape[3]
+    N_exc = exph_debye.shape[3]
+    npol = ex_dip_absorp.shape[0]
+
+    Ram_ten = np.zeros((N_ome, Nqpts, 3, nmode, nmode, 3, 3), dtype=ex_dip_absorp.dtype)
+
+    dipS_ares_base = np.conj(ex_dip_absorp)
+    dipSp_res_base = np.conj(ex_dip_absorp)
+
+    dipS_res_conj_arr = np.zeros((N_ome, npol, N_exc), dtype=ex_dip_absorp.dtype)
+    for i_ome in range(N_ome):
+        ome_light_Ha = ome_light_arr[i_ome]
+        dipS_res = ex_dip_absorp / (ome_light_Ha - BS_energies)
+        dipS_res_conj_arr[i_ome] = np.conj(dipS_res)
+
+    for iq in prange(Nqpts):
+        for il in range(nmode):
+            for jl in range(nmode):
+                W_AA = np.zeros((N_exc, N_exc), dtype=np.complex128)
+                W_EE = np.zeros((N_exc, N_exc), dtype=np.complex128)
+                W_AE = np.zeros((N_exc, N_exc), dtype=np.complex128)
+
+                for k in range(K):
+                    for a in range(A):
+                        for b in range(B):
+                            p_mq_AA = pol_vec_mq[iq, il, k, a]
+                            p_q_AA  = pol_vec_q[iq, jl, k, b]
+                            val_AA = p_mq_AA * p_q_AA
+
+                            c_p_q_EE  = np.conj(pol_vec_q[iq, il, k, a])
+                            c_p_mq_EE = np.conj(pol_vec_mq[iq, jl, k, b])
+                            val_EE = c_p_q_EE * c_p_mq_EE
+
+                            c_p_q_AE = np.conj(pol_vec_q[iq, il, k, a])
+                            p_q_AE   = pol_vec_q[iq, jl, k, b]
+                            val_AE = c_p_q_AE * p_q_AE
+
+                            for iexc in range(N_exc):
+                                for jexc in range(N_exc):
+                                    ev = exph_debye[k, a, b, iexc, jexc]
+                                    W_AA[iexc, jexc] += val_AA * ev
+                                    W_AE[iexc, jexc] += val_AE * ev
+                                    W_EE[iexc, jexc] += val_EE * ev
+                                    
+                W_AA *= (1.0 / np.sqrt(2.0))
+                W_EE *= (1.0 / np.sqrt(2.0))
+
+                for proc in range(3):
+                    freq = ph_freq_shift[proc, iq, il, jl]
+                    if np.abs(freq) <= ph_fre_th:
+                        continue
+
+                    if proc == 0:
+                        ex_ph_T = np.conj(W_AA.astype(ex_dip_absorp.dtype))
+                    elif proc == 1:
+                        ex_ph_T = np.conj(W_AE.astype(ex_dip_absorp.dtype))
+                    else:
+                        ex_ph_T = np.conj(W_EE.astype(ex_dip_absorp.dtype))
+
+                    for i_ome in range(N_ome):
+                        ome_light_Ha = ome_light_arr[i_ome]
+
+                        dipSp_res = dipSp_res_base / (ome_light_Ha - BS_energies + freq)
+                        dipSp_res_T_conj = np.conj(dipSp_res.T)
+                        term1 = dipS_res_conj_arr[i_ome] @ ex_ph_T @ dipSp_res_T_conj
+                        term1 = np.conj(term1)
+
+                        term2 = 0.0 * term1 
+                        scale = np.sqrt(np.abs(ome_light_Ha + freq) / ome_light_Ha) * ram_fac
+                        Ram_ten[i_ome, iq, proc, il, jl, :npol, :npol] = (term1 + term2) * scale
+
+    return Ram_ten
 
 def compute_Raman_oneph_exc(ome_light,
                             ph_freq,
@@ -625,30 +706,11 @@ def compute_two_ph_debye_exc(ome_light,
 
     pol_vec_mq_tmp = pol_vec_mq * omegamq_inv[:,:,None,None]
     pol_vec_q_tmp = pol_vec_q  * omegaq_inv[:,:,None,None]
-    #
-    W_AA = np.einsum('qlka, qmkb, kabij -> qlmij',
-                     pol_vec_mq_tmp, pol_vec_q_tmp, exph_debye, optimize=True)
-    
-    W_EE = np.einsum('qlka, qmkb, kabij -> qlmij',
-                     np.conj(pol_vec_q_tmp), np.conj(pol_vec_mq_tmp), exph_debye, optimize=True)
-    
-    W_AE = np.einsum('qlka, qmkb, kabij -> qlmij',
-                     np.conj(pol_vec_q_tmp), pol_vec_q_tmp, exph_debye, optimize=True)
-
-    W_tensor = np.zeros((3, Nqpts, nmode, nmode, N_exc, N_exc), dtype=c_type)
-    W_tensor[0] = W_AA * (1.0 / np.sqrt(2))
-    W_tensor[1] = W_AE
-    W_tensor[2] = W_EE * (1.0 / np.sqrt(2))
 
     ph_freq_shift = np.zeros((3, Nqpts, nmode, nmode), dtype=f_type)
     ph_freq_shift[0, :, :, :] = ph_freq_mq[:, :, None] + ph_freq_q[:, None, :]
     ph_freq_shift[1, :, :, :] = -ph_freq_q[:, :, None] + ph_freq_q[:, None, :]
     ph_freq_shift[2, :, :, :] = -ph_freq_q[:, :, None] - ph_freq_mq[:, None, :]
-
-    # We conj and transpose beaucase this is done so we need to undo
-    W_flat = W_tensor.reshape(-1, N_exc, N_exc).transpose(0,2,1).conj()
-    ph_freq_flat = -ph_freq_shift.reshape(-1) ## ## we alreayd have a negation in one-ph function
-    # to counter that we need to pass the negative freq to compensate that.
 
     ome_light_Ha = ome_light_arr / 27.211
     broading_Ha = broading / 27.211 / 2.0
@@ -658,21 +720,19 @@ def compute_two_ph_debye_exc(ome_light,
     ex_dip_absorp = np.conj(ex_dip[:npol, :])
     BS_energies = ex_ene_0 - 1j * broading_Ha
 
-    # 7. Convert to C-contiguous for Numba
+    # Convert to C-contiguous for Numba
     ome_light_c = np.ascontiguousarray(ome_light_Ha, dtype=f_type)
-    ph_freq_flat_c = np.ascontiguousarray(ph_freq_flat, dtype=f_type)
+    ph_freq_shift_c = np.ascontiguousarray(ph_freq_shift, dtype=f_type)
     BS_energies_c = np.ascontiguousarray(BS_energies, dtype=c_type)
     ex_dip_absorp_c = np.ascontiguousarray(ex_dip_absorp, dtype=c_type)
-    W_flat_c = np.ascontiguousarray(W_flat, dtype=c_type)
+    pol_vec_mq_c = np.ascontiguousarray(pol_vec_mq_tmp, dtype=c_type)
+    pol_vec_q_c = np.ascontiguousarray(pol_vec_q_tmp, dtype=c_type)
+    exph_debye_c = np.ascontiguousarray(exph_debye, dtype=c_type)
 
-    Ram_ten_flat = compute_Raman_oneph_exc_numba(
-        ome_light_c, ph_freq_flat_c, BS_energies_c, 
-        ex_dip_absorp_c, W_flat_c, ram_fac, ph_fre_th_Ha
+    Ram_ten = compute_Raman_twoph_debye_numba(
+        ome_light_c, ph_freq_shift_c, BS_energies_c, 
+        ex_dip_absorp_c, pol_vec_mq_c, pol_vec_q_c, exph_debye_c, ram_fac, ph_fre_th_Ha
     )
-
-    N_ome = len(ome_light_arr)
-    Ram_ten = Ram_ten_flat.reshape(N_ome, 3, Nqpts, nmode, nmode, 3, 3)
-    Ram_ten = Ram_ten.transpose(0, 2, 1, 3, 4, 5, 6)
     Ram_ten = Ram_ten[..., :npol, :npol]
 
     return Ram_ten
