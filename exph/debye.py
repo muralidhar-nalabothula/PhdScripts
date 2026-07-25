@@ -96,12 +96,12 @@ def compute_debye_exph(SAVE_folder, BSE_dir, elph_file, nexc):
     kvec = np.zeros(3)
     Ak = excdb.get_Akcv()
     exph_debye = exciton_X_matelem(kvec, kvec, Ak, Ak, Dwaller, kpoints)
-    return exph_debye.transpose(0,2,1).reshape(natom,3,3,nexc,nexc)
+    return exph_debye.transpose(0,2,1).reshape(natom,3,3,nexc,nexc) * 0.25 ## factor from ry to ha
 
 
-SAVE_folder = 'SAVE'
-BSE_dir = 'GW_BSE'
-elph_file = 'ndb.elph'
-debye_exph = compute_debye_exph(SAVE_folder, BSE_dir, elph_file, nexc=10)
-np.save('debye_exph',debye_exph)
-print(np.sum(np.abs(debye_exph)**2))
+# SAVE_folder = 'SAVE'
+# BSE_dir = 'GW_BSE'
+# elph_file = 'ndb.elph'
+# debye_exph = compute_debye_exph(SAVE_folder, BSE_dir, elph_file, nexc=10)
+# np.save('debye_exph',debye_exph)
+# print(np.sum(np.abs(debye_exph)**2))

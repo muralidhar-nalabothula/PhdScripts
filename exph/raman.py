@@ -620,8 +620,8 @@ def compute_two_ph_debye_exc(ome_light,
     Nqpts, nmode = ph_freq_q.shape
     N_exc = ex_dip.shape[1]
 
-    omegaq_inv  = np.where(ph_freq_q >  2e-5, 1.0 / np.sqrt(2.0 * ph_freq_q), 0.0)
-    omegamq_inv = np.where(ph_freq_mq > 2e-5, 1.0 / np.sqrt(2.0 * ph_freq_mq), 0.0)
+    omegaq_inv  = np.where(ph_freq_q >  1e-5, 1.0 / np.sqrt(2.0 * ph_freq_q), 0.0)
+    omegamq_inv = np.where(ph_freq_mq > 1e-5, 1.0 / np.sqrt(2.0 * ph_freq_mq), 0.0)
 
     pol_vec_mq_tmp = pol_vec_mq * omegamq_inv[:,:,None,None]
     pol_vec_q_tmp = pol_vec_q  * omegaq_inv[:,:,None,None]
